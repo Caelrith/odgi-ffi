@@ -1,0 +1,3 @@
+[submodule "vendor/odgi"]
+	path = vendor/odgi
+	url = https://github.com/pangenome/odgi.git
