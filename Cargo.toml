@@ -8,7 +8,9 @@ repository = "https://github.com/your-username/odgi-ffi"
 
 [lib]
 name = "odgi_ffi"
-crate-type = ["lib", "rlib"] # Standard for Rust libraries
+# CORRECTED: "lib" is redundant with "rlib" and was causing the collision.
+# We only need to specify the final artifact type we want.
+crate-type = ["rlib"]
 
 [dependencies]
 cxx = "1.0"
@@ -16,3 +18,6 @@ cxx = "1.0"
 [build-dependencies]
 cxx-build = "1.0"
 cmake = "0.1"
+
+[dev-dependencies]
+tempfile = "3.3.0"

@@ -1,15 +1,18 @@
-// src/graph.rs
+// File: src/graph.rs
+
+//! Provides the main `Graph` struct for in-memory graph operations.
 
 use cxx::UniquePtr;
 use std::fmt;
-
-// `super` refers to the parent module (src/lib.rs) and allows us to
-// access the private `ffi` module from within our crate.
 use super::ffi;
 
 /// A custom error type for operations within the odgi-ffi crate.
+///
+/// This error is returned by functions that may fail, such as file loading
+/// or external command execution. It contains a `String` with a descriptive
+/// error message.
 #[derive(Debug)]
-pub struct Error(String);
+pub struct Error(pub String);
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -19,15 +22,15 @@ impl fmt::Display for Error {
 
 /// A safe, idiomatic Rust wrapper around a C++ `odgi::graph_t` object.
 ///
-/// The `Graph` struct manages the lifetime of the underlying C++ graph object.
-/// When it is dropped, the C++ object is automatically deallocated.
+/// This struct manages the lifetime of the underlying C++ graph object using
+/// the RAII pattern. When an instance of `Graph` is dropped, the C++ memory
+// is automatically and safely deallocated.
 pub struct Graph {
-    // This field is private. It holds the pointer to our C++ OpaqueGraph wrapper.
     inner: UniquePtr<ffi::OpaqueGraph>,
 }
 
 impl Graph {
-    /// Loads an ODGI graph from a file.
+    /// Loads an ODGI graph from a file into memory.
     ///
     /// # Arguments
     ///
@@ -38,9 +41,7 @@ impl Graph {
     /// Returns an `Error` if the C++ backend fails to load the graph, for example
     /// if the file does not exist or is corrupted.
     pub fn load(path: &str) -> Result<Self, Error> {
-        // Unsafe FFI call is encapsulated here.
         let graph_ptr = ffi::load_graph(path);
-
         if graph_ptr.is_null() {
             Err(Error(format!("Failed to load ODGI graph from '{}'", path)))
         } else {
@@ -50,7 +51,6 @@ impl Graph {
 
     /// Returns the number of nodes in the graph.
     pub fn node_count(&self) -> u64 {
-        // This safe method hides the chain of unsafe FFI calls.
         let opaque_graph_ref = &self.inner;
         let graph_t_ref = ffi::get_graph_t(opaque_graph_ref);
         ffi::get_node_count(graph_t_ref)
