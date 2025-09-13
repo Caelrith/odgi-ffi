@@ -1,0 +1,12 @@
+H	VN:Z:1.0
+S	1	GATTACA
+S	2	T
+S	3	G
+S	4	GTC
+L	1	+	2	+	0M
+L	1	+	3	+	0M
+L	2	+	4	+	0M
+L	3	+	4	+	0M
+P	x	1+,2+,4+	*
+P	y	1+,3+,4+	*
+P	z	1+,2+	*

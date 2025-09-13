@@ -1,15 +1,23 @@
-// src/graph.rs
+// File: src/graph.rs
+
+//! Provides the main `Graph` struct for in-memory graph operations.
 
 use cxx::UniquePtr;
 use std::fmt;
-
-// `super` refers to the parent module (src/lib.rs) and allows us to
-// access the private `ffi` module from within our crate.
 use super::ffi;
 
+// Re-export the FFI data structures so they are part of the public API
+// and can be used as return types from the Graph methods.
+// e.g., a user can write `let edge: odgi_ffi::Edge = ...`
+pub use super::ffi::{Edge, PathPosition};
+
 /// A custom error type for operations within the odgi-ffi crate.
+///
+/// This error is returned by functions that may fail, such as file loading
+/// or external command execution. It contains a `String` with a descriptive
+/// error message.
 #[derive(Debug)]
-pub struct Error(String);
+pub struct Error(pub String);
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -19,15 +27,18 @@ impl fmt::Display for Error {
 
 /// A safe, idiomatic Rust wrapper around a C++ `odgi::graph_t` object.
 ///
-/// The `Graph` struct manages the lifetime of the underlying C++ graph object.
-/// When it is dropped, the C++ object is automatically deallocated.
+/// This struct manages the lifetime of the underlying C++ graph object using
+/// the RAII pattern. When an instance of `Graph` is dropped, the C++ memory
+/// is automatically and safely deallocated.
+///
+/// It provides high-level methods to query the graph's properties and structure.
 pub struct Graph {
     // This field is private. It holds the pointer to our C++ OpaqueGraph wrapper.
     inner: UniquePtr<ffi::OpaqueGraph>,
 }
 
 impl Graph {
-    /// Loads an ODGI graph from a file.
+    /// Loads an ODGI graph from a file into memory.
     ///
     /// # Arguments
     ///
@@ -38,9 +49,7 @@ impl Graph {
     /// Returns an `Error` if the C++ backend fails to load the graph, for example
     /// if the file does not exist or is corrupted.
     pub fn load(path: &str) -> Result<Self, Error> {
-        // Unsafe FFI call is encapsulated here.
         let graph_ptr = ffi::load_graph(path);
-
         if graph_ptr.is_null() {
             Err(Error(format!("Failed to load ODGI graph from '{}'", path)))
         } else {
@@ -48,65 +57,141 @@ impl Graph {
         }
     }
 
-    /// Returns the number of nodes in the graph.
+    /// Returns the total number of nodes in the graph.
     pub fn node_count(&self) -> u64 {
-        // This safe method hides the chain of unsafe FFI calls.
-        let opaque_graph_ref = &self.inner;
-        let graph_t_ref = ffi::get_graph_t(opaque_graph_ref);
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::get_node_count(graph_t_ref)
     }
-}// src/lib.rs
 
-// 1. Declare the `graph` module, which corresponds to `src/graph.rs`.
+    // --- NEW: Safe wrappers for query functions ---
+
+    /// Returns a list of all path names in the graph.
+    pub fn get_path_names(&self) -> Vec<String> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        ffi::graph_get_path_names(graph_t_ref)
+    }
+
+    /// Projects a 0-based linear coordinate on a path to graph coordinates.
+    ///
+    /// Note: The `pos` argument is the 0-based position on the path.
+    /// Returns `None` if the path does not exist or the position is out of bounds.
+    pub fn project(&self, path_name: &str, pos: u64) -> Option<PathPosition> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        // The FFI function returns a Vec; we want an Option for idiomatic Rust.
+        ffi::graph_project(graph_t_ref, path_name, pos).into_iter().next()
+    }
+    
+    /// Gets the DNA sequence for a given node ID.
+    /// Returns an empty string if the node does not exist.
+    pub fn get_node_sequence(&self, node_id: u64) -> String {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        ffi::graph_get_node_sequence(graph_t_ref, node_id)
+    }
+
+    /// Gets the length of the sequence for a given node ID.
+    /// Returns 0 if the node does not exist.
+    pub fn get_node_len(&self, node_id: u64) -> u64 {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        ffi::graph_get_node_len(graph_t_ref, node_id)
+    }
+
+    /// Gets all successor edges for a given node ID.
+    /// An "edge" connects the end of one node to the start of another.
+    /// This function considers both forward and reverse orientations of the source node.
+    pub fn get_successors(&self, node_id: u64) -> Vec<Edge> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        ffi::graph_get_successors(graph_t_ref, node_id)
+    }
+
+    /// Gets all predecessor edges for a given node ID.
+    /// An "edge" connects the end of one node to the start of another.
+    /// This function considers both forward and reverse orientations of the target node.
+    pub fn get_predecessors(&self, node_id: u64) -> Vec<Edge> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        ffi::graph_get_predecessors(graph_t_ref, node_id)
+    }
+
+    /// Gets the names of all paths that step on a given node ID.
+    /// Note: This may return duplicate path names if a path steps on the same node multiple times.
+    pub fn get_paths_on_node(&self, node_id: u64) -> Vec<String> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        ffi::graph_get_paths_on_node(graph_t_ref, node_id)
+    }
+}// File: src/lib.rs
+
 mod graph;
+mod conversion;
 
-// 2. Re-export the public items from the `graph` module so users can easily
-// access them with `use odgi_ffi::Graph;`.
-pub use graph::{Graph, Error};
+pub use graph::{Graph, Error, Edge, PathPosition};
+pub use conversion::{gfa_to_odgi, odgi_to_gfa};
 
-
-// 3. The FFI bridge is a private implementation detail of this crate.
-// Users will not and cannot access this directly.
 #[cxx::bridge(namespace = "odgi")]
 mod ffi {
+    // This is the single source of truth for these structs.
+    // CXX will generate a C++ header file from these definitions.
+    #[derive(Debug, Clone)]
+    struct Edge {
+        to_node: u64,
+        from_orientation: bool,
+        to_orientation: bool,
+    }
+
+    #[derive(Debug, Clone)]
+    struct PathPosition {
+        node_id: u64,
+        offset: u64,
+        is_forward: bool,
+    }
+
     unsafe extern "C++" {
-        include!("odgi.hpp");
+        // We include our own header first.
         include!("odgi-ffi/src/odgi_wrapper.hpp");
         
-        // This type is correctly found in the `odgi` namespace.
-        type graph_t;
+        // This is the C++ header that cxx generates from the Rust code above.
+        // We must include it so our C++ functions know about the Rust-defined structs.
+        include!("odgi-ffi/src/lib.rs.h");
 
-        // The following types and functions are in the global C++ namespace.
+        // The opaque C++ types remain the same.
+        type graph_t;
         #[namespace = ""]
         type OpaqueGraph;
 
+        // All functions are in the global namespace.
         #[namespace = ""]
         fn load_graph(path: &str) -> UniquePtr<OpaqueGraph>;
-
         #[namespace = ""]
         fn get_graph_t<'a>(graph: &'a OpaqueGraph) -> &'a graph_t;
-
-        // CORRECTED: This function also lives in the global namespace, so it needs
-        // the attribute to override the module-level `namespace = "odgi"`.
         #[namespace = ""]
         fn get_node_count(graph: &graph_t) -> u64;
+        #[namespace = ""]
+        fn graph_get_path_names(graph: &graph_t) -> Vec<String>;
+        #[namespace = ""]
+        fn graph_project(graph: &graph_t, path_name: &str, pos: u64) -> Vec<PathPosition>;
+        #[namespace = ""]
+        fn graph_get_node_sequence(graph: &graph_t, node_id: u64) -> String;
+        #[namespace = ""]
+        fn graph_get_node_len(graph: &graph_t, node_id: u64) -> u64;
+        #[namespace = ""]
+        fn graph_get_successors(graph: &graph_t, node_id: u64) -> Vec<Edge>;
+        #[namespace = ""]
+        fn graph_get_predecessors(graph: &graph_t, node_id: u64) -> Vec<Edge>;
+        #[namespace = ""]
+        fn graph_get_paths_on_node(graph: &graph_t, node_id: u64) -> Vec<String>;
     }
-}// src/odgi.cpp
+}// File: src/odgi.cpp
 
 #include "odgi_wrapper.hpp"
 #include <fstream>
 #include <string>
-#include "odgi-ffi/src/lib.rs.h"
+#include <vector>
+#include "odgi-ffi/src/lib.rs.h" 
 
+// --- Core API ---
 std::unique_ptr<OpaqueGraph> load_graph(rust::Str path) {
     auto odgi_graph = std::make_unique<odgi::graph_t>();
     std::ifstream in{std::string(path)};
-
-    if (!in) {
-        return nullptr;
-    }
+    if (!in) { return nullptr; }
     odgi_graph->deserialize(in);
-
     auto wrapper = std::make_unique<OpaqueGraph>();
     wrapper->graph = std::move(odgi_graph);
     return wrapper;
@@ -118,17 +203,216 @@ const odgi::graph_t& get_graph_t(const OpaqueGraph& wrapper) {
 
 uint64_t get_node_count(const odgi::graph_t& graph) {
     return graph.get_node_count();
-}// src/odgi_wrapper.hpp
+}
+
+// --- Query Functions ---
+rust::Vec<rust::String> graph_get_path_names(const odgi::graph_t& graph) {
+    rust::Vec<rust::String> names;
+    graph.for_each_path_handle([&](const odgi::path_handle_t& path) {
+        names.push_back(graph.get_path_name(path));
+    });
+    return names;
+}
+
+rust::Vec<odgi::PathPosition> graph_project(const odgi::graph_t& graph, rust::Str path_name, uint64_t pos) {
+    rust::Vec<odgi::PathPosition> result;
+    if (!graph.has_path(std::string(path_name))) {
+        return result;
+    }
+    odgi::path_handle_t path = graph.get_path_handle(std::string(path_name));
+    
+    uint64_t path_len = graph.get_path_length(path);
+    if (pos >= path_len) {
+        return result; // Position is out of bounds.
+    }
+
+    uint64_t current_pos = 0;
+    graph.for_each_step_in_path(path, [&](const odgi::step_handle_t& step) {
+        odgi::handle_t handle = graph.get_handle_of_step(step);
+        uint64_t node_len = graph.get_length(handle);
+
+        // Check if the target position falls within the current step.
+        if (pos < current_pos + node_len) {
+            uint64_t offset_in_step = pos - current_pos;
+            
+            result.push_back({
+                (uint64_t)graph.get_id(handle),
+                // Correctly calculate offset for forward vs reverse handles.
+                graph.get_is_reverse(handle) ? (node_len - 1 - offset_in_step) : offset_in_step,
+                !graph.get_is_reverse(handle)
+            });
+            return false; // Stop iterating, we found our position.
+        }
+        current_pos += node_len;
+        return true; // Continue to the next step.
+    });
+
+    return result;
+}
+
+rust::String graph_get_node_sequence(const odgi::graph_t& graph, uint64_t node_id) {
+    if (!graph.has_node(node_id)) return "";
+    return graph.get_sequence(graph.get_handle(node_id, false));
+}
+
+uint64_t graph_get_node_len(const odgi::graph_t& graph, uint64_t node_id) {
+    if (!graph.has_node(node_id)) return 0;
+    return graph.get_length(graph.get_handle(node_id, false));
+}
+
+rust::Vec<odgi::Edge> graph_get_successors(const odgi::graph_t& graph, uint64_t node_id) {
+    rust::Vec<odgi::Edge> edges;
+    if (!graph.has_node(node_id)) return edges;
+    
+    // Iterate over successors from the FORWARD orientation of the node
+    auto handle_fwd = graph.get_handle(node_id, false);
+    graph.follow_edges(handle_fwd, false, [&](const odgi::handle_t& next) {
+        edges.push_back({(uint64_t)graph.get_id(next), true, !graph.get_is_reverse(next)});
+        return true; // CORRECTED: This is essential to continue iterating.
+    });
+
+    // Iterate over successors from the REVERSE orientation of the node
+    auto handle_rev = graph.get_handle(node_id, true);
+    graph.follow_edges(handle_rev, false, [&](const odgi::handle_t& next) {
+        edges.push_back({(uint64_t)graph.get_id(next), false, !graph.get_is_reverse(next)});
+        return true; // CORRECTED: This is essential to continue iterating.
+    });
+    return edges;
+}
+
+rust::Vec<odgi::Edge> graph_get_predecessors(const odgi::graph_t& graph, uint64_t node_id) {
+    rust::Vec<odgi::Edge> edges;
+    if (!graph.has_node(node_id)) return edges;
+
+    // Iterate over predecessors to the FORWARD orientation of the node
+    auto handle_fwd = graph.get_handle(node_id, false);
+    graph.follow_edges(handle_fwd, true, [&](const odgi::handle_t& prev) {
+        edges.push_back({(uint64_t)graph.get_id(prev), !graph.get_is_reverse(prev), true});
+        return true; // CORRECTED: This is essential to continue iterating.
+    });
+
+    // Iterate over predecessors to the REVERSE orientation of the node
+    auto handle_rev = graph.get_handle(node_id, true);
+    graph.follow_edges(handle_rev, true, [&](const odgi::handle_t& prev) {
+        edges.push_back({(uint64_t)graph.get_id(prev), !graph.get_is_reverse(prev), false});
+        return true; // CORRECTED: This is essential to continue iterating.
+    });
+    return edges;
+}
+
+rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint64_t node_id) {
+    rust::Vec<rust::String> paths;
+    if (!graph.has_node(node_id)) return paths;
+    
+    auto handle = graph.get_handle(node_id, false);
+    graph.for_each_step_on_handle(handle, [&](const odgi::step_handle_t& step) {
+        paths.push_back(graph.get_path_name(graph.get_path_handle_of_step(step)));
+        return true; // CORRECTED: This is essential to continue iterating.
+    });
+    return paths;
+}// File: src/conversion.rs
+
+//! Provides file-based conversion utilities between GFA and ODGI formats.
+//!
+//! The functions in this module shell out to the `odgi` command-line executable
+//! that is compiled as part of this crate's build process. This provides a stable
+//! and robust way to perform complex file conversions.
+
+use super::graph::Error;
+use std::process::Command;
+
+/// Converts a GFA file to an ODGI file by calling `odgi build`.
+///
+/// # Arguments
+///
+/// * `gfa_path` - The path to the input GFA file.
+/// * `odgi_path` - The path where the output ODGI file will be saved.
+///
+/// # Errors
+///
+/// Returns an `Error` if the `odgi build` command fails, for example if the
+/// input file does not exist or the GFA is malformed.
+pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
+    let odgi_exe = env!("ODGI_EXE");
+    let output = Command::new(odgi_exe)
+        .arg("build")
+        .arg("-g")
+        .arg(gfa_path)
+        .arg("-o")
+        .arg(odgi_path)
+        .output()
+        .map_err(|e| Error(format!("Failed to execute odgi command: {}", e)))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(Error(format!(
+            "odgi build command failed for '{}': {}",
+            gfa_path, stderr
+        )))
+    }
+}
+
+/// Converts an ODGI file to a GFA file by calling `odgi view`.
+///
+/// # Arguments
+///
+/// * `odgi_path` - The path to the input ODGI file.
+/// * `gfa_path` - The path where the output GFA file will be saved.
+///
+/// # Errors
+///
+/// Returns an `Error` if the `odgi view` command fails or if the resulting
+/// GFA content cannot be written to the output file.
+pub fn odgi_to_gfa(odgi_path: &str, gfa_path: &str) -> Result<(), Error> {
+    let odgi_exe = env!("ODGI_EXE");
+    let output = Command::new(odgi_exe)
+        .arg("view")
+        .arg("-i")
+        .arg(odgi_path)
+        .arg("-g") // Output in GFA format
+        .output()
+        .map_err(|e| Error(format!("Failed to execute odgi command: {}", e)))?;
+
+    if output.status.success() {
+        std::fs::write(gfa_path, output.stdout)
+            .map_err(|e| Error(format!("Failed to write GFA output to file: {}", e)))?;
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(Error(format!(
+            "odgi view command failed for '{}': {}",
+            odgi_path, stderr
+        )))
+    }
+}// File: src/odgi_wrapper.hpp
 
 #pragma once
 #include "odgi.hpp"
 #include "rust/cxx.h"
 #include <memory>
 
+// OpaqueGraph is defined in the global namespace.
 struct OpaqueGraph {
     std::unique_ptr<odgi::graph_t> graph;
 };
 
+// The function declarations.
+// Note: `odgi::Edge` and `odgi::PathPosition` are now known types because
+// our .cpp file will include the header generated by cxx.
+namespace odgi {
+    struct Edge;
+    struct PathPosition;
+}
+
 std::unique_ptr<OpaqueGraph> load_graph(rust::Str path);
 const odgi::graph_t& get_graph_t(const OpaqueGraph& graph);
 uint64_t get_node_count(const odgi::graph_t& graph);
+rust::Vec<rust::String> graph_get_path_names(const odgi::graph_t& graph);
+rust::Vec<odgi::PathPosition> graph_project(const odgi::graph_t& graph, rust::Str path_name, uint64_t pos);
+rust::String graph_get_node_sequence(const odgi::graph_t& graph, uint64_t node_id);
+uint64_t graph_get_node_len(const odgi::graph_t& graph, uint64_t node_id);
+rust::Vec<odgi::Edge> graph_get_successors(const odgi::graph_t& graph, uint64_t node_id);
+rust::Vec<odgi::Edge> graph_get_predecessors(const odgi::graph_t& graph, uint64_t node_id);
+rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint64_t node_id);

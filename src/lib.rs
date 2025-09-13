@@ -1,71 +1,127 @@
 // File: src/lib.rs
 
-//! # ODGI FFI
+//! A safe Rust interface to the `odgi` C++ library.
 //!
-//! A safe and ergonomic Rust wrapper for the `odgi` pangenome graph tool.
+//! The `odgi-ffi` crate provides high-level, idiomatic Rust bindings for querying
+//! [ODGI](https://github.com/pangenome/odgi) graphs. It handles the complexity of the
+//! C++ FFI boundary, providing a safe and easy-to-use API for Rust developers.
 //!
-//! This crate provides high-level, safe Rust functions to interact with the `odgi`
-//! C++ library. It handles the complexities of FFI (Foreign Function Interface)
-//! and C++ memory management, allowing you to work with ODGI graphs in an
-//! idiomatic Rust fashion.
+//! The primary entry point is the [`Graph`] struct, which represents a loaded ODGI graph
+//! in memory. This crate also provides utility functions for converting between GFA and
+//! ODGI file formats.
 //!
-//! ## Features
+//! # Features
 //!
-//! - **Safe Graph Loading**: Load `.odgi` files into an in-memory `Graph` object
-//!   that automatically manages the lifetime of the underlying C++ object.
-//! - **File-based Conversions**: Easily convert between `.gfa` and `.odgi` formats.
-//! - **Simple API**: Access basic graph properties with safe methods.
+//! - Load ODGI graphs from disk into a safe Rust wrapper.
+//! - Query graph properties, such as node count, path names, and node sequences.
+//! - Perform topological queries, such as finding node successors and predecessors.
+//! - Project path coordinates to their corresponding nodes and offsets.
+//! - Convert between GFA and ODGI formats using the bundled `odgi` executable.
 //!
-//! ## Example
+//! # Example
 //!
-//! Here's a quick example of how to convert a GFA file to ODGI, load it,
-//! and get its node count.
+//! Here's a complete example of loading a graph and performing some basic queries.
 //!
-//! ```no_run
-//! use odgi_ffi::{Graph, gfa_to_odgi, odgi_to_gfa};
-//! use std::fs;
+//! ```rust,no_run
+//! use odgi_ffi::{Graph, gfa_to_odgi};
+//! use tempfile::NamedTempFile;
+//! use std::io::Write;
 //!
-//! // Assume "my_graph.gfa" exists.
-//! let gfa_path = "my_graph.gfa";
-//! let odgi_path = "my_graph.odgi";
+//! // Create a temporary GFA file for the example.
+//! let mut gfa_file = NamedTempFile::new().unwrap();
+//! writeln!(gfa_file, "H\tVN:Z:1.0").unwrap();
+//! writeln!(gfa_file, "S\t1\tGATTACA").unwrap();
+//! writeln!(gfa_file, "S\t2\tT").unwrap();
+//! writeln!(gfa_file, "L\t1\t+\t2\t+\t0M").unwrap();
+//! writeln!(gfa_file, "P\tx\t1+,2+\t*").unwrap();
+//! let gfa_path = gfa_file.path();
 //!
-//! // 1. Convert the GFA to an ODGI file.
-//! gfa_to_odgi(gfa_path, odgi_path).expect("GFA to ODGI conversion failed.");
+//! // Create a path for the ODGI output file.
+//! let odgi_file = NamedTempFile::new().unwrap();
+//! let odgi_path = odgi_file.path();
+//!
+//! // 1. Convert the GFA file to an ODGI file.
+//! gfa_to_odgi(gfa_path.to_str().unwrap(), odgi_path.to_str().unwrap())
+//!     .expect("Failed to convert GFA to ODGI");
 //!
 //! // 2. Load the ODGI graph into memory.
-//! let graph = Graph::load(odgi_path).expect("Failed to load ODGI graph.");
+//! let graph = Graph::load(odgi_path.to_str().unwrap())
+//!     .expect("Failed to load ODGI graph");
 //!
-//! // 3. Use the safe API to get the node count.
-//! let count = graph.node_count();
-//! println!("The graph has {} nodes.", count);
+//! // 3. Query the graph.
+//! assert_eq!(graph.node_count(), 2);
 //!
-//! // Clean up the created file.
-//! fs::remove_file(odgi_path).unwrap();
+//! let path_names = graph.get_path_names();
+//! assert_eq!(path_names, vec!["x"]);
+//!
+//! let seq = graph.get_node_sequence(1);
+//! assert_eq!(seq, "GATTACA");
+//!
+//! // Projecting position 7 on path "x" should land at the start of node 2.
+//! let position = graph.project("x", 7).unwrap();
+//! assert_eq!(position.node_id, 2);
+//! assert_eq!(position.offset, 0);
 //! ```
 
 mod graph;
 mod conversion;
 
-pub use graph::{Graph, Error};
+pub use graph::{Graph, Error, Edge, PathPosition};
 pub use conversion::{gfa_to_odgi, odgi_to_gfa};
+
 
 #[cxx::bridge(namespace = "odgi")]
 mod ffi {
+    // This is the single source of truth for these structs.
+    // CXX will generate a C++ header file from these definitions.
+    #[derive(Debug, Clone)]
+    struct Edge {
+        to_node: u64,
+        from_orientation: bool,
+        to_orientation: bool,
+    }
+
+    #[derive(Debug, Clone)]
+    struct PathPosition {
+        node_id: u64,
+        offset: u64,
+        is_forward: bool,
+    }
+
     unsafe extern "C++" {
+        // We include our own header first.
         include!("odgi-ffi/src/odgi_wrapper.hpp");
         
-        type graph_t;
+        // This is the C++ header that cxx generates from the Rust code above.
+        // We must include it so our C++ functions know about the Rust-defined structs.
+        include!("odgi-ffi/src/lib.rs.h");
 
+        // The opaque C++ types remain the same.
+        type graph_t;
         #[namespace = ""]
         type OpaqueGraph;
 
+        // All functions are in the global namespace.
         #[namespace = ""]
         fn load_graph(path: &str) -> UniquePtr<OpaqueGraph>;
-
         #[namespace = ""]
         fn get_graph_t<'a>(graph: &'a OpaqueGraph) -> &'a graph_t;
-
         #[namespace = ""]
         fn get_node_count(graph: &graph_t) -> u64;
+
+        #[namespace = ""]
+        fn graph_get_path_names(graph: &graph_t) -> Vec<String>;
+        #[namespace = ""]
+        fn graph_project(graph: &graph_t, path_name: &str, pos: u64) -> UniquePtr<PathPosition>;
+        #[namespace = ""]
+        fn graph_get_node_sequence(graph: &graph_t, node_id: u64) -> String;
+        #[namespace = ""]
+        fn graph_get_node_len(graph: &graph_t, node_id: u64) -> u64;
+        #[namespace = ""]
+        fn graph_get_successors(graph: &graph_t, node_id: u64) -> Vec<Edge>;
+        #[namespace = ""]
+        fn graph_get_predecessors(graph: &graph_t, node_id: u64) -> Vec<Edge>;
+        #[namespace = ""]
+        fn graph_get_paths_on_node(graph: &graph_t, node_id: u64) -> Vec<String>;
     }
 }
