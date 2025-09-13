@@ -1,0 +1,18 @@
+[package]
+name = "odgi-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "A safe, ergonomic Rust wrapper for the odgi pangenome graph tool."
+license = "MIT"
+repository = "https://github.com/your-username/odgi-ffi"
+
+[lib]
+name = "odgi_ffi"
+crate-type = ["lib", "rlib"] # Standard for Rust libraries
+
+[dependencies]
+cxx = "1.0"
+
+[build-dependencies]
+cxx-build = "1.0"
+cmake = "0.1"
