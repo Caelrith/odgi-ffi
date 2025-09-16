@@ -1,15 +1,20 @@
 [package]
 name = "odgi-ffi"
 version = "0.1.0"
+# ADD an authors field
+authors = ["Milan Langhendries founder@caelrith.com"]
 edition = "2021"
 description = "A safe, ergonomic Rust wrapper for the odgi pangenome graph tool."
 license = "MIT"
-repository = "https://github.com/your-username/odgi-ffi"
+repository = "https://github.com/your-username/odgi-ffi" # Don't forget to update "your-username"!
+
+# ADD these fields for better discoverability and presentation
+readme = "README.md"
+keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
+categories = ["science", "api-bindings", "external-ffi-bindings"]
 
 [lib]
 name = "odgi_ffi"
-# CORRECTED: "lib" is redundant with "rlib" and was causing the collision.
-# We only need to specify the final artifact type we want.
 crate-type = ["rlib"]
 
 [dependencies]
