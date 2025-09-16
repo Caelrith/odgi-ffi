@@ -10,19 +10,30 @@ readme = "README.md"
 keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
 categories = ["science", "api-bindings", "external-ffi-bindings"]
 
-# This is the final, aggressive exclude list.
-# It removes the massive 'deps' directory and other non-essentials.
+# This is the final, surgical exclude list. It removes all non-essential
+# files while keeping the required C++ source code in the 'deps' directory.
 exclude = [
+    # Exclude the main submodule's git history and CI files
     "vendor/odgi/.git",
     "vendor/odgi/.github/",
     "vendor/odgi/.gitignore",
+
+    # Exclude documentation and examples
     "vendor/odgi/docs/",
     "vendor/odgi/test/",
     "vendor/odgi/examples/",
     "vendor/odgi/Dockerfile",
-    
-    # The MOST IMPORTANT line:
-    "vendor/odgi/deps/",
+
+    # The most important part: Aggressively clean the dependencies.
+    # The `**/` pattern matches at any depth.
+    "vendor/odgi/deps/**/*.git",       # All nested git repos
+    "vendor/odgi/deps/**/*.github/",   # All nested github folders
+    "vendor/odgi/deps/**/*.gitignore", # All nested gitignores
+    "vendor/odgi/deps/**/docs/",       # All nested docs
+    "vendor/odgi/deps/**/test/",       # All nested tests
+    "vendor/odgi/deps/**/tests/",      # All nested tests (alternative name)
+    "vendor/odgi/deps/**/example/",    # All nested examples
+    "vendor/odgi/deps/**/examples/",   # All nested examples (alternative name)
 ]
 
 [lib]
