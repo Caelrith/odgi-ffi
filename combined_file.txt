@@ -1,14 +1,23 @@
+// File: src/graph.rs
+
 //! Provides the main [`Graph`] struct for in-memory graph operations.
+//!
+//! This module defines the central [`Graph`] object, which is the primary
+//! entry point for querying a loaded ODGI graph. It also defines the
+//! associated [`Error`] type for handling failures.
+
 use cxx::UniquePtr;
+use std::error::Error as StdError;
 use std::fmt;
 use super::ffi;
-use std::error::Error as StdError;
 
 // Re-export the FFI data structures so they are part of the public API
 // and can be used as return types from the Graph methods.
 pub use super::ffi::{Edge, PathPosition};
 
 /// A custom error type for operations within the `odgi-ffi` crate.
+///
+/// This error is returned by functions that might fail, such as [`Graph::load`].
 #[derive(Debug)]
 pub struct Error(pub String);
 
@@ -21,6 +30,12 @@ impl fmt::Display for Error {
 impl StdError for Error {}
 
 /// A safe, idiomatic Rust wrapper around a C++ `odgi::graph_t` object.
+///
+/// A `Graph` instance represents a pangenome graph loaded into memory.
+/// Once loaded, you can use its methods to perform various queries, such as
+/// retrieving node sequences, finding paths, and traversing the graph structure.
+///
+/// The only way to create a `Graph` is by calling [`Graph::load`].
 pub struct Graph {
     // This field is private. It holds the pointer to our C++ OpaqueGraph wrapper.
     inner: UniquePtr<ffi::OpaqueGraph>,
@@ -28,6 +43,25 @@ pub struct Graph {
 
 impl Graph {
     /// Loads an ODGI graph from a file into memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - A string slice that holds the path to the ODGI file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`Error`] if the file does not exist or if the file format is invalid.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use odgi_ffi::Graph;
+    ///
+    /// match Graph::load("my_graph.odgi") {
+    ///     Ok(graph) => println!("Graph loaded successfully!"),
+    ///     Err(e) => eprintln!("Failed to load graph: {}", e),
+    /// }
+    /// ```
     pub fn load(path: &str) -> Result<Self, Error> {
         let graph_ptr = ffi::load_graph(path);
         if graph_ptr.is_null() {
@@ -36,20 +70,66 @@ impl Graph {
             Ok(Graph { inner: graph_ptr })
         }
     }
-    
+
     /// Returns the total number of nodes in the graph.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use odgi_ffi::Graph;
+    /// # let graph = Graph::load("my_graph.odgi").unwrap();
+    /// let count = graph.node_count();
+    /// println!("The graph has {} nodes.", count);
+    /// ```
     pub fn node_count(&self) -> u64 {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::get_node_count(graph_t_ref)
     }
 
     /// Returns a list of all path names in the graph.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use odgi_ffi::Graph;
+    /// # let graph = Graph::load("my_graph.odgi").unwrap();
+    /// let paths = graph.get_path_names();
+    /// for path_name in paths {
+    ///     println!("Found path: {}", path_name);
+    /// }
+    /// ```
     pub fn get_path_names(&self) -> Vec<String> {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::graph_get_path_names(graph_t_ref)
     }
-    
+
     /// Projects a 0-based linear coordinate on a path to graph coordinates.
+    ///
+    /// This is useful for finding which node and offset corresponds to a
+    /// specific position along a named path.
+    ///
+    /// # Arguments
+    ///
+    /// * `path_name` - The name of the path to project onto.
+    /// * `pos` - The 0-based nucleotide position along the path.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(PathPosition)` if the path exists and the position is
+    /// within its bounds. Returns `None` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use odgi_ffi::Graph;
+    /// # let graph = Graph::load("my_graph.odgi").unwrap();
+    /// if let Some(position) = graph.project("human_chr1", 1_000_000) {
+    ///     println!("Position 1M on chr1 is at node {} offset {}",
+    ///              position.node_id, position.offset);
+    /// } else {
+    ///     println!("Position not found on path.");
+    /// }
+    /// ```
     pub fn project(&self, path_name: &str, pos: u64) -> Option<PathPosition> {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         let result_ptr = ffi::graph_project(graph_t_ref, path_name, pos);
@@ -62,24 +142,45 @@ impl Graph {
     }
 
     /// Gets the DNA sequence for a given node ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `node_id` - The ID of the node to query.
+    ///
+    /// # Returns
+    ///
+    /// Returns the sequence as a `String`. If the `node_id` is invalid,
+    /// an empty string is returned.
     pub fn get_node_sequence(&self, node_id: u64) -> String {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::graph_get_node_sequence(graph_t_ref, node_id)
     }
 
     /// Gets the length of the sequence for a given node ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `node_id` - The ID of the node to query.
+    ///
+    /// # Returns
+    ///
+    /// Returns the sequence length. If the `node_id` is invalid, `0` is returned.
     pub fn get_node_len(&self, node_id: u64) -> u64 {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::graph_get_node_len(graph_t_ref, node_id)
     }
 
     /// Gets all successor edges for a given node ID.
+    ///
+    /// Successors are the nodes immediately following this one in the graph topology.
     pub fn get_successors(&self, node_id: u64) -> Vec<Edge> {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::graph_get_successors(graph_t_ref, node_id)
     }
 
     /// Gets all predecessor edges for a given node ID.
+    ///
+    /// Predecessors are the nodes immediately preceding this one in the graph topology.
     pub fn get_predecessors(&self, node_id: u64) -> Vec<Edge> {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::graph_get_predecessors(graph_t_ref, node_id)
@@ -92,11 +193,16 @@ impl Graph {
     }
 }
 
-// NEW: Implement thread-safety traits for our FFI wrapper.
+/// Marks the `Graph` struct as safe to send between threads.
 // The `unsafe` keyword is our guarantee to the compiler that we've ensured
 // the underlying C++ object is safe to be sent and accessed across threads,
 // which is true in our read-only use case.
 unsafe impl Send for Graph {}
+
+/// Marks the `Graph` struct as safe to share between threads.
+// The `unsafe` keyword is our guarantee to the compiler that we've ensured
+// the underlying C++ object is safe to be sent and accessed across threads,
+// which is true in our read-only use case.
 unsafe impl Sync for Graph {}// File: src/lib.rs
 
 //! A safe Rust interface to the `odgi` C++ library.
@@ -108,6 +214,11 @@ unsafe impl Sync for Graph {}// File: src/lib.rs
 //! The primary entry point is the [`Graph`] struct, which represents a loaded ODGI graph
 //! in memory. This crate also provides utility functions for converting between GFA and
 //! ODGI file formats.
+//!
+//! # Modules
+//!
+//! - [`graph`]: Contains the main [`Graph`] struct for querying graph data.
+//! - [`conversion`]: Provides functions like [`gfa_to_odgi`] for format conversion.
 //!
 //! # Features
 //!
@@ -165,25 +276,33 @@ unsafe impl Sync for Graph {}// File: src/lib.rs
 mod graph;
 mod conversion;
 
+// Publicly re-export the core types for easy access.
 pub use graph::{Graph, Error, Edge, PathPosition};
 pub use conversion::{gfa_to_odgi, odgi_to_gfa};
 
 
+/// Internal FFI bridge to the C++ odgi library.
 #[cxx::bridge(namespace = "odgi")]
 mod ffi {
-    // This is the single source of truth for these structs.
-    // CXX will generate a C++ header file from these definitions.
+    /// Represents a directed edge between two nodes in the graph.
     #[derive(Debug, Clone)]
     struct Edge {
+        /// The ID of the node this edge points to.
         to_node: u64,
+        /// The orientation of the "from" node's handle in this edge.
         from_orientation: bool,
+        /// The orientation of the "to" node's handle in this edge.
         to_orientation: bool,
     }
 
+    /// Represents a specific position on a path.
     #[derive(Debug, Clone)]
     struct PathPosition {
+        /// The ID of the node at this position.
         node_id: u64,
+        /// The 0-based offset within the node's sequence.
         offset: u64,
+        /// The orientation of the node on the path at this position.
         is_forward: bool,
     }
 
@@ -361,25 +480,30 @@ rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint
     return paths;
 }// File: src/conversion.rs
 
-//! Provides file-based conversion utilities between GFA and ODGI formats.
+//! Provides utilities to convert between GFA and ODGI file formats.
 //!
 //! The functions in this module shell out to the `odgi` command-line executable
 //! that is compiled as part of this crate's build process. This provides a stable
 //! and robust way to perform complex file conversions without linking the entire
 //! `odgi build` and `odgi view` logic into the library binary.
 use super::graph::Error;
+use std::io::Write; // Needed for the updated examples
 use std::process::Command;
+use tempfile::NamedTempFile; // Needed for the updated examples
 
 /// Converts a GFA file to an ODGI file by calling `odgi build`.
 ///
+/// This function is useful for preparing an ODGI graph from the more common
+/// GFA format, making it ready to be loaded by [`super::Graph::load`].
+///
 /// # Arguments
 ///
-/// * `gfa_path` - The path to the input GFA file.
-/// * `odgi_path` - The path where the output ODGI file will be saved.
+/// * `gfa_path` - Path to the input GFA file.
+/// * `odgi_path` - Path for the output ODGI file.
 ///
 /// # Errors
 ///
-/// Returns an [`Error`] if the `odgi build` command fails, for example if the
+/// Returns an [`Error`] if the `odgi build` command fails. This can happen if the
 /// input file does not exist, the GFA is malformed, or the output path is
 /// not writable.
 ///
@@ -387,18 +511,22 @@ use std::process::Command;
 ///
 /// ```rust,no_run
 /// use odgi_ffi::gfa_to_odgi;
-/// use std::fs::File;
 /// use std::io::Write;
+/// use tempfile::NamedTempFile;
 ///
-/// // Create a dummy GFA file.
-/// let mut file = File::create("in.gfa").unwrap();
-/// writeln!(file, "S\t1\tA").unwrap();
+/// // 1. Create a temporary GFA file.
+/// let mut gfa_file = NamedTempFile::new().unwrap();
+/// writeln!(gfa_file, "S\t1\tGATTACA").unwrap();
 ///
-/// // Convert it to ODGI format.
-/// match gfa_to_odgi("in.gfa", "out.odgi") {
-///     Ok(_) => println!("Conversion successful!"),
-///     Err(e) => eprintln!("Error during conversion: {}", e),
-/// }
+/// // 2. Prepare the path for the ODGI output file.
+/// let odgi_file = NamedTempFile::new().unwrap();
+/// let odgi_path = odgi_file.path();
+///
+/// // 3. Convert the GFA to ODGI format.
+/// gfa_to_odgi(gfa_file.path().to_str().unwrap(), odgi_path.to_str().unwrap())
+///     .expect("Conversion failed");
+///
+/// assert!(odgi_path.exists());
 /// ```
 pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
     let odgi_exe = env!("ODGI_EXE");
@@ -424,10 +552,12 @@ pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
 
 /// Converts an ODGI file to a GFA file by calling `odgi view`.
 ///
+/// This is the reverse operation of [`gfa_to_odgi`].
+///
 /// # Arguments
 ///
-/// * `odgi_path` - The path to the input ODGI file.
-/// * `gfa_path` - The path where the output GFA file will be saved.
+/// * `odgi_path` - Path to the input ODGI file.
+/// * `gfa_path` - Path for the output GFA file.
 ///
 /// # Errors
 ///
@@ -437,20 +567,25 @@ pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use odgi_ffi::{odgi_to_gfa, gfa_to_odgi};
-/// use std::fs::File;
+/// use odgi_ffi::{gfa_to_odgi, odgi_to_gfa};
 /// use std::io::Write;
+/// use tempfile::NamedTempFile;
 ///
-/// // First, create a dummy ODGI file to convert.
-/// let mut file = File::create("in.gfa").unwrap();
-/// writeln!(file, "S\t1\tA").unwrap();
-/// gfa_to_odgi("in.gfa", "my_graph.odgi").unwrap();
+/// // 1. First, create a dummy ODGI file to use as input.
+/// let mut gfa_file = NamedTempFile::new().unwrap();
+/// writeln!(gfa_file, "S\t1\tGATTACA").unwrap();
+/// let odgi_file = NamedTempFile::new().unwrap();
+/// gfa_to_odgi(gfa_file.path().to_str().unwrap(), odgi_file.path().to_str().unwrap()).unwrap();
 ///
-/// // Convert it back to GFA format.
-/// match odgi_to_gfa("my_graph.odgi", "out.gfa") {
-///     Ok(_) => println!("Conversion successful!"),
-///     Err(e) => eprintln!("Error during conversion: {}", e),
-/// }
+/// // 2. Prepare the path for the GFA output file.
+/// let gfa_out_file = NamedTempFile::new().unwrap();
+/// let gfa_out_path = gfa_out_file.path();
+///
+/// // 3. Convert it back to GFA format.
+/// odgi_to_gfa(odgi_file.path().to_str().unwrap(), gfa_out_path.to_str().unwrap())
+///     .expect("Conversion failed");
+///
+/// assert!(gfa_out_path.exists());
 /// ```
 pub fn odgi_to_gfa(odgi_path: &str, gfa_path: &str) -> Result<(), Error> {
     let odgi_exe = env!("ODGI_EXE");
