@@ -1,6 +1,6 @@
 [package]
 name = "odgi-ffi"
-version = "1.0.6"
+version = "1.0.7"
 authors = ["Milan Langhendries founder@caelrith.com"]
 edition = "2024"
 description = "A safe, ergonomic Rust wrapper for the odgi pangenome graph tool."
