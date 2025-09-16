@@ -10,19 +10,27 @@ readme = "README.md"
 keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
 categories = ["science", "api-bindings", "external-ffi-bindings"]
 
-# This is the final, surgical exclude list. It removes the true sources of
-# package bloat while leaving the source code structure intact for the C++ build.
+# This is the final, data-driven exclude list. It surgically removes the
+# large non-source-code files that your `find` command identified.
 exclude = [
-    # CRITICAL: Exclude all git version control data at any depth.
-    # This is the primary source of the multi-megabyte package size.
+    # General good practice: remove all git data in case it exists anywhere.
     "**/.git",
     "**/.github",
     "**/.gitignore",
     "**/.gitmodules",
 
-    # Exclude the large documentation folder identified by `du`.
+    # CRITICAL: Exclude files by extension based on your investigation.
+    # This removes the multi-megabyte test data and benchmark results
+    # without removing the directories, which would break the C++ build.
+    "**/*.7z",
+    "**/results/*.txt",
+    "**/data/*.gfa",
+    "vendor/odgi/test/*.gfa",
+
+    # Exclude documentation, which is not needed for the build.
     "vendor/odgi/docs/",
 ]
+
 
 [lib]
 name = "odgi_ffi"
