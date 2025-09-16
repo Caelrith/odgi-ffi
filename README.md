@@ -55,6 +55,10 @@ The primary entry point of this library is the `Graph` struct. The typical workf
 
 If your data is in GFA format, you can first convert it using the provided `gfa_to_odgi` function.
 
+## Ask the AI
+
+The combined_file.txt file contains all the source code contained in the /src folder. Just copy paste the entire contents of this file in your favorite LLM and ask questions like "Explain how this system works." or "How can I make an interactive pangenome visualization tool using this crate?" etc.
+
 ### Complete Example
 
 Here is a complete example that demonstrates converting a GFA file, loading the resulting ODGI graph, and performing several queries.
