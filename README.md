@@ -27,13 +27,17 @@ This crate is ideal for bioinformaticians and developers who want to build high-
 
 ## Getting Started
 
-### Prerequisites
+## Prerequisites
 
-To build this crate, you need a C++ compiler that supports C++17, as well as `cmake`. The build script will handle the compilation of the vendored `odgi` C++ library.
+This crate compiles the `odgi` C++ library from source. To successfully build `odgi-ffi`, you must have a C++ build environment installed on your system. This includes:
 
--   A C++17 compliant compiler (e.g., GCC 7+ or Clang 6+)
--   CMake (version 3.10 or higher)
--   Rust (stable toolchain recommended)
+- A C++17 compliant compiler (e.g., `g++` or `clang++`)
+- `CMake` (version 3.10 or higher)
+- `make`
+
+On Debian/Ubuntu, you can install these with:
+```bash
+sudo apt-get update && sudo apt-get install build-essential cmake
 
 ### Installation
 
