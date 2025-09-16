@@ -10,16 +10,15 @@ readme = "README.md"
 keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
 categories = ["science", "api-bindings", "external-ffi-bindings"]
 
-# This is the ONLY packaging key we need.
-# It tells Cargo to package everything by default, EXCEPT for these
-# large, non-essential files from the submodule.
+# This is the corrected packaging configuration.
+# We package everything by default, EXCEPT for these specific non-essential files.
+# Crucially, we NO LONGER exclude the 'scripts' directory, as the build needs it.
 exclude = [
     "vendor/odgi/.git",
     "vendor/odgi/.github/",
     "vendor/odgi/.gitignore",
     "vendor/odgi/docs/",
     "vendor/odgi/test/",
-    "vendor/odgi/scripts/",
     "vendor/odgi/examples/",
     "vendor/odgi/Dockerfile",
 ]
@@ -38,3 +37,4 @@ cmake = "0.1"
 fs_extra = "1.3.0"
 
 [dev-dependencies]
+
