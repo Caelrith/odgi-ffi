@@ -1,5 +1,3 @@
-// File: src/lib.rs
-
 //! A safe Rust interface to the `odgi` C++ library.
 //!
 //! The `odgi-ffi` crate provides high-level, idiomatic Rust bindings for querying
@@ -47,11 +45,11 @@
 //!
 //! // 1. Convert the GFA file to an ODGI file.
 //! gfa_to_odgi(gfa_path.to_str().unwrap(), odgi_path.to_str().unwrap())
-//!     .expect("Failed to convert GFA to ODGI");
+//!      .expect("Failed to convert GFA to ODGI");
 //!
 //! // 2. Load the ODGI graph into memory.
 //! let graph = Graph::load(odgi_path.to_str().unwrap())
-//!     .expect("Failed to load ODGI graph");
+//!      .expect("Failed to load ODGI graph");
 //!
 //! // 3. Query the graph.
 //! assert_eq!(graph.node_count(), 2);
@@ -77,6 +75,7 @@ pub use conversion::{gfa_to_odgi, odgi_to_gfa};
 
 
 /// Internal FFI bridge to the C++ odgi library.
+#[cfg(not(feature = "docs-only"))]
 #[cxx::bridge(namespace = "odgi")]
 mod ffi {
     /// Represents a directed edge between two nodes in the graph.
@@ -138,3 +137,8 @@ mod ffi {
         fn graph_get_paths_on_node(graph: &graph_t, node_id: u64) -> Vec<String>;
     }
 }
+
+// When building for docs, provide a dummy ffi module to satisfy the compiler.
+// The public API is in other modules, so rustdoc will still generate full documentation.
+#[cfg(feature = "docs-only")]
+mod ffi {}

@@ -3,9 +3,13 @@ use std::path::PathBuf;
 use fs_extra::dir::{copy, CopyOptions};
 
 fn main() {
+    // If the `docs-only` feature is set, do nothing and exit early.
+    if cfg!(feature = "docs-only") {
+        println!("cargo:warning=Skipping C++ build for docs.rs.");
+        return;
+    }
+
     // === Part 0: Copy C++ source to a temporary, writable directory ===
-    // This is the definitive fix for the "dirty working directory" error during packaging.
-    // We copy the vendored source to OUT_DIR, which is a scratch space for build scripts.
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let odgi_source_dir = PathBuf::from("vendor/odgi");
     let odgi_build_source_dir = out_dir.join("odgi-source-for-build");
@@ -18,8 +22,6 @@ fn main() {
 
 
     // === Part 1: Build odgi from the COPIED source ===
-    // Now, we point CMake to our temporary copy. All build artifacts will be created
-    // within the OUT_DIR, leaving the original vendor/odgi directory untouched.
     let dst = cmake::Config::new(&odgi_build_source_dir)
         .define("BUILD_TESTS", "OFF")
         .define("ODGI_BUILD_DOCS", "OFF")
@@ -46,8 +48,6 @@ fn main() {
 
 
     // === Part 5: Build our C++ FFI wrapper code ===
-    // These include paths still point to the original vendor directory for simplicity,
-    // as they are only needed for header discovery and don't create artifacts.
     cxx_build::bridge("src/lib.rs")
         .file("src/odgi.cpp")
         .flag("-fopenmp")
