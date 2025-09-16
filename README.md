@@ -49,15 +49,17 @@ Add `odgi-ffi` as a dependency in your `Cargo.toml` file:
 odgi-ffi = "1.0.1"
 ```
 
+## Ask the AI
+
+The combined_file.txt file contains all the source code contained in the /src folder. Just copy paste the entire contents of this file in your favorite LLM and ask questions like "Explain how this system works." or "How can I make an interactive pangenome visualization tool using this crate?" etc.
+
 ## Usage
 
 The primary entry point of this library is the `Graph` struct. The typical workflow involves loading an `.odgi` file and then using the `Graph` methods to inspect it.
 
 If your data is in GFA format, you can first convert it using the provided `gfa_to_odgi` function.
 
-## Ask the AI
 
-The combined_file.txt file contains all the source code contained in the /src folder. Just copy paste the entire contents of this file in your favorite LLM and ask questions like "Explain how this system works." or "How can I make an interactive pangenome visualization tool using this crate?" etc.
 
 ### Complete Example
 
