@@ -44,12 +44,14 @@
 //! let odgi_path = odgi_file.path();
 //!
 //! // 1. Convert the GFA file to an ODGI file.
+//! // This function is only available when not using the `docs-only` feature.
+//! # #[cfg(not(feature = "docs-only"))]
 //! gfa_to_odgi(gfa_path.to_str().unwrap(), odgi_path.to_str().unwrap())
-//!      .expect("Failed to convert GFA to ODGI");
+//!     .expect("Failed to convert GFA to ODGI");
 //!
 //! // 2. Load the ODGI graph into memory.
 //! let graph = Graph::load(odgi_path.to_str().unwrap())
-//!      .expect("Failed to load ODGI graph");
+//!     .expect("Failed to load ODGI graph");
 //!
 //! // 3. Query the graph.
 //! assert_eq!(graph.node_count(), 2);
@@ -67,14 +69,21 @@
 //! ```
 
 mod graph;
+
+// Conditionally compile the conversion module.
+// It will not exist for docs.rs builds.
+#[cfg(not(feature = "docs-only"))]
 mod conversion;
 
 // Publicly re-export the core types for easy access.
 pub use graph::{Graph, Error, Edge, PathPosition};
+
+// Conditionally re-export the conversion functions.
+#[cfg(not(feature = "docs-only"))]
 pub use conversion::{gfa_to_odgi, odgi_to_gfa};
 
 
-/// Internal FFI bridge to the C++ odgi library.
+// --- REAL FFI BRIDGE (for normal builds) ---
 #[cfg(not(feature = "docs-only"))]
 #[cxx::bridge(namespace = "odgi")]
 mod ffi {
@@ -101,26 +110,19 @@ mod ffi {
     }
 
     unsafe extern "C++" {
-        // We include our own header first.
         include!("odgi-ffi/src/odgi_wrapper.hpp");
-        
-        // This is the C++ header that cxx generates from the Rust code above.
-        // We must include it so our C++ functions know about the Rust-defined structs.
         include!("odgi-ffi/src/lib.rs.h");
 
-        // The opaque C++ types remain the same.
         type graph_t;
         #[namespace = ""]
         type OpaqueGraph;
 
-        // All functions are in the global namespace.
         #[namespace = ""]
         fn load_graph(path: &str) -> UniquePtr<OpaqueGraph>;
         #[namespace = ""]
         fn get_graph_t<'a>(graph: &'a OpaqueGraph) -> &'a graph_t;
         #[namespace = ""]
         fn get_node_count(graph: &graph_t) -> u64;
-
         #[namespace = ""]
         fn graph_get_path_names(graph: &graph_t) -> Vec<String>;
         #[namespace = ""]
@@ -138,7 +140,27 @@ mod ffi {
     }
 }
 
-// When building for docs, provide a dummy ffi module to satisfy the compiler.
-// The public API is in other modules, so rustdoc will still generate full documentation.
+// --- MOCK FFI BRIDGE (for docs.rs) ---
 #[cfg(feature = "docs-only")]
-mod ffi {}
+mod ffi {
+    // This self-contained mock module provides all the types that `graph.rs` needs
+    // to compile its public API for documentation purposes.
+
+    // Mock the opaque C++ types.
+    pub enum OpaqueGraph {}
+
+    // Provide mock definitions for the shared structs.
+    #[derive(Debug, Clone)]
+    pub struct Edge {
+        pub to_node: u64,
+        pub from_orientation: bool,
+        pub to_orientation: bool,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct PathPosition {
+        pub node_id: u64,
+        pub offset: u64,
+        pub is_forward: bool,
+    }
+}

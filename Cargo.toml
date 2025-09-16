@@ -1,6 +1,6 @@
 [package]
 name = "odgi-ffi"
-version = "1.0.1"
+version = "1.0.6"
 authors = ["Milan Langhendries founder@caelrith.com"]
 edition = "2024"
 description = "A safe, ergonomic Rust wrapper for the odgi pangenome graph tool."
@@ -10,6 +10,7 @@ readme = "README.md"
 keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
 categories = ["science", "api-bindings", "external-ffi-bindings"]
 
+# This exclude list is necessary to keep the crate size manageable for publishing.
 exclude = [
     "**/.git",
     "**/.github",
@@ -21,7 +22,6 @@ exclude = [
     "vendor/odgi/test/*.gfa",
     "vendor/odgi/docs/",
 ]
-
 
 [lib]
 name = "odgi_ffi"
@@ -38,12 +38,12 @@ fs_extra = "1.3.0"
 
 [dev-dependencies]
 
-# ++ Added for docs.rs build ++
+# --- Configuration for docs.rs build ---
+
 [features]
-# This feature will be used to disable the C++ build for docs.rs
+# This feature disables the C++ build for documentation purposes.
 docs-only = []
 
 [package.metadata.docs.rs]
-# Tell docs.rs to build with ONLY our special feature enabled.
-# This disables the default build and avoids compiling C++.
+# Tell docs.rs to build with ONLY our special feature, which skips the C++ compilation.
 features = ["docs-only"]

@@ -4,6 +4,7 @@ use fs_extra::dir::{copy, CopyOptions};
 
 fn main() {
     // If the `docs-only` feature is set, do nothing and exit early.
+    // This is the key to a successful docs.rs build.
     if cfg!(feature = "docs-only") {
         println!("cargo:warning=Skipping C++ build for docs.rs.");
         return;
