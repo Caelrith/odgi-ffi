@@ -38,8 +38,9 @@ This crate compiles the `odgi` C++ library from source. To successfully build `o
 On Debian/Ubuntu, you can install these with:
 ```bash
 sudo apt-get update && sudo apt-get install build-essential cmake
+```
 
-### Installation
+## Installation
 
 Add `odgi-ffi` as a dependency in your `Cargo.toml` file:
 
