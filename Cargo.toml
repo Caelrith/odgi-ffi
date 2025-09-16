@@ -10,30 +10,15 @@ readme = "README.md"
 keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
 categories = ["science", "api-bindings", "external-ffi-bindings"]
 
-# This is the final, surgical exclude list. It removes all non-essential
-# files while keeping the required C++ source code in the 'deps' directory.
+# This is the final, correct exclude list.
+# It ONLY removes git version control data, which is the main source of bloat.
+# It leaves all source code directories (`test`, `examples`, etc.) intact,
+# which is required to prevent the CMake build from failing.
 exclude = [
-    # Exclude the main submodule's git history and CI files
+    # Exclude the main submodule's git history.
     "vendor/odgi/.git",
-    "vendor/odgi/.github/",
-    "vendor/odgi/.gitignore",
-
-    # Exclude documentation and examples
-    "vendor/odgi/docs/",
-    "vendor/odgi/test/",
-    "vendor/odgi/examples/",
-    "vendor/odgi/Dockerfile",
-
-    # The most important part: Aggressively clean the dependencies.
-    # The `**/` pattern matches at any depth.
-    "vendor/odgi/deps/**/*.git",       # All nested git repos
-    "vendor/odgi/deps/**/*.github/",   # All nested github folders
-    "vendor/odgi/deps/**/*.gitignore", # All nested gitignores
-    "vendor/odgi/deps/**/docs/",       # All nested docs
-    "vendor/odgi/deps/**/test/",       # All nested tests
-    "vendor/odgi/deps/**/tests/",      # All nested tests (alternative name)
-    "vendor/odgi/deps/**/example/",    # All nested examples
-    "vendor/odgi/deps/**/examples/",   # All nested examples (alternative name)
+    # The `**/` pattern matches at any depth. This is the most critical rule.
+    "vendor/odgi/deps/**/*.git", # Excludes ALL nested git repos in the dependencies.
 ]
 
 [lib]
