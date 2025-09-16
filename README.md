@@ -46,7 +46,7 @@ Add `odgi-ffi` as a dependency in your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-odgi-ffi = "1.0.1"
+odgi-ffi = "1.0.6"
 ```
 
 ## Ask the AI
@@ -165,3 +165,7 @@ Contributions are welcome! If you find a bug, have a feature request, or want to
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Notes
+
+The docs on docs.rs don't show up for whatever reason, I haven't been able to pinpoint the bug yet. Suggestions on how to fix this are welcome. you can run 'cargo doc --open' after installing the project locally using the commands under the 'Building from Source' section to see the docs, but I recommend just asking your favorite LLM about the source code if you have trouble getting it to work in your project.
