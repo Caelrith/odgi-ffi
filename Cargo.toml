@@ -10,28 +10,18 @@ readme = "README.md"
 keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
 categories = ["science", "api-bindings", "external-ffi-bindings"]
 
-# This is the final, definitive exclude list.
-# The `**/` pattern is critical as it matches files and folders at ANY depth
-# inside the submodule, which is where the bloat is hiding.
+# This is the final, surgical exclude list. It removes the true sources of
+# package bloat while leaving the source code structure intact for the C++ build.
 exclude = [
     # CRITICAL: Exclude all git version control data at any depth.
+    # This is the primary source of the multi-megabyte package size.
     "**/.git",
     "**/.github",
     "**/.gitignore",
     "**/.gitmodules",
 
-    # Exclude documentation and tests at any depth.
-    # We leave `examples` in as some build scripts might need them.
-    "**/docs",
-    "**/doc",
-    "**/test",
-    "**/tests",
-    "**/testdata",
-
-    # Exclude other non-essential files.
-    "**/Dockerfile",
-    "**/*.md",
-    "!/README.md", # The `!` re-includes the main README file.
+    # Exclude the large documentation folder identified by `du`.
+    "vendor/odgi/docs/",
 ]
 
 [lib]
