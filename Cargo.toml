@@ -10,15 +10,28 @@ readme = "README.md"
 keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
 categories = ["science", "api-bindings", "external-ffi-bindings"]
 
-# This is the final, correct exclude list.
-# It ONLY removes git version control data, which is the main source of bloat.
-# It leaves all source code directories (`test`, `examples`, etc.) intact,
-# which is required to prevent the CMake build from failing.
+# This is the final, definitive exclude list.
+# The `**/` pattern is critical as it matches files and folders at ANY depth
+# inside the submodule, which is where the bloat is hiding.
 exclude = [
-    # Exclude the main submodule's git history.
-    "vendor/odgi/.git",
-    # The `**/` pattern matches at any depth. This is the most critical rule.
-    "vendor/odgi/deps/**/*.git", # Excludes ALL nested git repos in the dependencies.
+    # CRITICAL: Exclude all git version control data at any depth.
+    "**/.git",
+    "**/.github",
+    "**/.gitignore",
+    "**/.gitmodules",
+
+    # Exclude documentation and tests at any depth.
+    # We leave `examples` in as some build scripts might need them.
+    "**/docs",
+    "**/doc",
+    "**/test",
+    "**/tests",
+    "**/testdata",
+
+    # Exclude other non-essential files.
+    "**/Dockerfile",
+    "**/*.md",
+    "!/README.md", # The `!` re-includes the main README file.
 ]
 
 [lib]
