@@ -1,31 +1,26 @@
-// File: build.rs
 use std::env;
 use std::path::PathBuf;
 use fs_extra::dir::{copy, CopyOptions};
 
 fn main() {
     // === Part 0: Copy C++ source to a temporary, writable directory ===
-    // This is the crucial step to avoid the "Source directory was modified" error.
+    // This is the definitive fix for the "dirty working directory" error during packaging.
     // We copy the vendored source to OUT_DIR, which is a scratch space for build scripts.
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let odgi_source_dir = PathBuf::from("vendor/odgi");
-
-    // The destination for the copy will be inside `target/debug/build/...`
     let odgi_build_source_dir = out_dir.join("odgi-source-for-build");
 
-    // Perform the copy.
     let mut options = CopyOptions::new();
     options.overwrite = true;
     options.content_only = true;
     copy(&odgi_source_dir, &odgi_build_source_dir, &options)
         .expect("Failed to copy odgi source to temporary build directory");
 
-    println!("cargo:warning=Copied C++ source to temporary dir: {}", odgi_build_source_dir.display());
 
-
-    // === Part 1: Build odgi and its dependencies from the COPIED source ===
-    // Now, we point CMake to our temporary copy, not the original `vendor/odgi`.
-    let dst = cmake::Config::new(&odgi_build_source_dir) // <-- Use the copy!
+    // === Part 1: Build odgi from the COPIED source ===
+    // Now, we point CMake to our temporary copy. All build artifacts will be created
+    // within the OUT_DIR, leaving the original vendor/odgi directory untouched.
+    let dst = cmake::Config::new(&odgi_build_source_dir)
         .define("BUILD_TESTS", "OFF")
         .define("ODGI_BUILD_DOCS", "OFF")
         .build();
@@ -36,8 +31,6 @@ fn main() {
 
 
     // === Part 3: Tell Cargo where to find the compiled libraries ===
-    // NOTE: These paths are still hardcoded and may be brittle if odgi's internal
-    // build structure changes in a future version.
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
     println!("cargo:rustc-link-search=native={}/lib64", dst.display());
     println!("cargo:rustc-link-search=native={}/build/handlegraph-prefix/lib", dst.display());
@@ -53,7 +46,8 @@ fn main() {
 
 
     // === Part 5: Build our C++ FFI wrapper code ===
-    // NOTE: These include paths are also hardcoded and may be brittle.
+    // These include paths still point to the original vendor directory for simplicity,
+    // as they are only needed for header discovery and don't create artifacts.
     cxx_build::bridge("src/lib.rs")
         .file("src/odgi.cpp")
         .flag("-fopenmp")

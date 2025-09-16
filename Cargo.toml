@@ -10,19 +10,9 @@ readme = "README.md"
 keywords = ["odgi", "pangenome", "graph", "ffi", "bioinformatics"]
 categories = ["science", "api-bindings", "external-ffi-bindings"]
 
-# This section is the key fix.
-# First, a whitelist of everything the crate needs to exist.
-# This overrides any .gitignore files.
-include = [
-    "src/",
-    "vendor/odgi/", # Include the entire submodule directory first.
-    "build.rs",
-    "Cargo.toml",
-    "README.md",
-]
-
-# Second, a blacklist to trim the fat from the submodule.
-# This removes large, non-essential files from the package.
+# This is the ONLY packaging key we need.
+# It tells Cargo to package everything by default, EXCEPT for these
+# large, non-essential files from the submodule.
 exclude = [
     "vendor/odgi/.git",
     "vendor/odgi/.github/",
@@ -33,7 +23,6 @@ exclude = [
     "vendor/odgi/examples/",
     "vendor/odgi/Dockerfile",
 ]
-
 
 [lib]
 name = "odgi_ffi"
@@ -49,4 +38,3 @@ cmake = "0.1"
 fs_extra = "1.3.0"
 
 [dev-dependencies]
-# Your dev dependencies can go here if you have any for tests.
