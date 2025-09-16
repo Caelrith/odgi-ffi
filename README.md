@@ -46,7 +46,7 @@ Add `odgi-ffi` as a dependency in your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-odgi-ffi = "1.0.0"
+odgi-ffi = "1.0.1"
 ```
 
 ## Usage
