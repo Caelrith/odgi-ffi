@@ -1,24 +1,29 @@
 // File: src/conversion.rs
 
-//! Provides file-based conversion utilities between GFA and ODGI formats.
+//! Provides utilities to convert between GFA and ODGI file formats.
 //!
 //! The functions in this module shell out to the `odgi` command-line executable
 //! that is compiled as part of this crate's build process. This provides a stable
 //! and robust way to perform complex file conversions without linking the entire
 //! `odgi build` and `odgi view` logic into the library binary.
 use super::graph::Error;
+use std::io::Write; // Needed for the updated examples
 use std::process::Command;
+use tempfile::NamedTempFile; // Needed for the updated examples
 
 /// Converts a GFA file to an ODGI file by calling `odgi build`.
 ///
+/// This function is useful for preparing an ODGI graph from the more common
+/// GFA format, making it ready to be loaded by [`super::Graph::load`].
+///
 /// # Arguments
 ///
-/// * `gfa_path` - The path to the input GFA file.
-/// * `odgi_path` - The path where the output ODGI file will be saved.
+/// * `gfa_path` - Path to the input GFA file.
+/// * `odgi_path` - Path for the output ODGI file.
 ///
 /// # Errors
 ///
-/// Returns an [`Error`] if the `odgi build` command fails, for example if the
+/// Returns an [`Error`] if the `odgi build` command fails. This can happen if the
 /// input file does not exist, the GFA is malformed, or the output path is
 /// not writable.
 ///
@@ -26,18 +31,22 @@ use std::process::Command;
 ///
 /// ```rust,no_run
 /// use odgi_ffi::gfa_to_odgi;
-/// use std::fs::File;
 /// use std::io::Write;
+/// use tempfile::NamedTempFile;
 ///
-/// // Create a dummy GFA file.
-/// let mut file = File::create("in.gfa").unwrap();
-/// writeln!(file, "S\t1\tA").unwrap();
+/// // 1. Create a temporary GFA file.
+/// let mut gfa_file = NamedTempFile::new().unwrap();
+/// writeln!(gfa_file, "S\t1\tGATTACA").unwrap();
 ///
-/// // Convert it to ODGI format.
-/// match gfa_to_odgi("in.gfa", "out.odgi") {
-///     Ok(_) => println!("Conversion successful!"),
-///     Err(e) => eprintln!("Error during conversion: {}", e),
-/// }
+/// // 2. Prepare the path for the ODGI output file.
+/// let odgi_file = NamedTempFile::new().unwrap();
+/// let odgi_path = odgi_file.path();
+///
+/// // 3. Convert the GFA to ODGI format.
+/// gfa_to_odgi(gfa_file.path().to_str().unwrap(), odgi_path.to_str().unwrap())
+///     .expect("Conversion failed");
+///
+/// assert!(odgi_path.exists());
 /// ```
 pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
     let odgi_exe = env!("ODGI_EXE");
@@ -63,10 +72,12 @@ pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
 
 /// Converts an ODGI file to a GFA file by calling `odgi view`.
 ///
+/// This is the reverse operation of [`gfa_to_odgi`].
+///
 /// # Arguments
 ///
-/// * `odgi_path` - The path to the input ODGI file.
-/// * `gfa_path` - The path where the output GFA file will be saved.
+/// * `odgi_path` - Path to the input ODGI file.
+/// * `gfa_path` - Path for the output GFA file.
 ///
 /// # Errors
 ///
@@ -76,20 +87,25 @@ pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use odgi_ffi::{odgi_to_gfa, gfa_to_odgi};
-/// use std::fs::File;
+/// use odgi_ffi::{gfa_to_odgi, odgi_to_gfa};
 /// use std::io::Write;
+/// use tempfile::NamedTempFile;
 ///
-/// // First, create a dummy ODGI file to convert.
-/// let mut file = File::create("in.gfa").unwrap();
-/// writeln!(file, "S\t1\tA").unwrap();
-/// gfa_to_odgi("in.gfa", "my_graph.odgi").unwrap();
+/// // 1. First, create a dummy ODGI file to use as input.
+/// let mut gfa_file = NamedTempFile::new().unwrap();
+/// writeln!(gfa_file, "S\t1\tGATTACA").unwrap();
+/// let odgi_file = NamedTempFile::new().unwrap();
+/// gfa_to_odgi(gfa_file.path().to_str().unwrap(), odgi_file.path().to_str().unwrap()).unwrap();
 ///
-/// // Convert it back to GFA format.
-/// match odgi_to_gfa("my_graph.odgi", "out.gfa") {
-///     Ok(_) => println!("Conversion successful!"),
-///     Err(e) => eprintln!("Error during conversion: {}", e),
-/// }
+/// // 2. Prepare the path for the GFA output file.
+/// let gfa_out_file = NamedTempFile::new().unwrap();
+/// let gfa_out_path = gfa_out_file.path();
+///
+/// // 3. Convert it back to GFA format.
+/// odgi_to_gfa(odgi_file.path().to_str().unwrap(), gfa_out_path.to_str().unwrap())
+///     .expect("Conversion failed");
+///
+/// assert!(gfa_out_path.exists());
 /// ```
 pub fn odgi_to_gfa(odgi_path: &str, gfa_path: &str) -> Result<(), Error> {
     let odgi_exe = env!("ODGI_EXE");

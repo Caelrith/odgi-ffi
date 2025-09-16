@@ -10,6 +10,11 @@
 //! in memory. This crate also provides utility functions for converting between GFA and
 //! ODGI file formats.
 //!
+//! # Modules
+//!
+//! - [`graph`]: Contains the main [`Graph`] struct for querying graph data.
+//! - [`conversion`]: Provides functions like [`gfa_to_odgi`] for format conversion.
+//!
 //! # Features
 //!
 //! - Load ODGI graphs from disk into a safe Rust wrapper.
@@ -66,25 +71,33 @@
 mod graph;
 mod conversion;
 
+// Publicly re-export the core types for easy access.
 pub use graph::{Graph, Error, Edge, PathPosition};
 pub use conversion::{gfa_to_odgi, odgi_to_gfa};
 
 
+/// Internal FFI bridge to the C++ odgi library.
 #[cxx::bridge(namespace = "odgi")]
 mod ffi {
-    // This is the single source of truth for these structs.
-    // CXX will generate a C++ header file from these definitions.
+    /// Represents a directed edge between two nodes in the graph.
     #[derive(Debug, Clone)]
     struct Edge {
+        /// The ID of the node this edge points to.
         to_node: u64,
+        /// The orientation of the "from" node's handle in this edge.
         from_orientation: bool,
+        /// The orientation of the "to" node's handle in this edge.
         to_orientation: bool,
     }
 
+    /// Represents a specific position on a path.
     #[derive(Debug, Clone)]
     struct PathPosition {
+        /// The ID of the node at this position.
         node_id: u64,
+        /// The 0-based offset within the node's sequence.
         offset: u64,
+        /// The orientation of the node on the path at this position.
         is_forward: bool,
     }
 

@@ -10,7 +10,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-odgi = "0.1.0"
+odgi = "1.0.0"
 ```
 
 Then, you can use it in your code:
