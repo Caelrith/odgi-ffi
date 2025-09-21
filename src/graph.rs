@@ -1,3 +1,5 @@
+// src/graph.rs
+
 //! Provides the main [`Graph`] struct for in-memory graph operations.
 //!
 //! This module defines the central [`Graph`] object, which is the primary
@@ -196,123 +198,119 @@ impl Graph {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::graph_get_paths_on_node(graph_t_ref, node_id)
     }
+
+    /// Gets the total length of a path in base pairs.
+    ///
+    /// # Arguments
+    ///
+    /// * `path_name` - The name of the path to measure.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(u64)` with the path length if the path exists.
+    /// Returns `None` if no path with that name is found in the graph.
+    pub fn get_path_length(&self, path_name: &str) -> Option<u64> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        // We can use the existing get_path_names to check for existence first,
+        // making our Rust API safer and more idiomatic than the C++ one.
+        if !self.get_path_names().iter().any(|p| p == path_name) {
+            return None;
+        }
+        let length = ffi::graph_get_path_length(graph_t_ref, path_name);
+        Some(length)
+    }
+
+    /// Gets the names of all paths that traverse a specific directed edge.
+    ///
+    /// An edge is defined by a source node and a destination node, including the
+    /// orientation of each node. This function will return a unique list of
+    /// path names that step from `from_node` to `to_node` with the specified
+    /// orientations.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_node` - The ID of the node where the edge begins.
+    /// * `from_orientation` - The orientation of the `from_node`. `true` for forward, `false` for reverse.
+    /// * `to_node` - The ID of the node where the edge ends.
+    /// * `to_orientation` - The orientation of the `to_node`. `true` for forward, `false` for reverse.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Vec<String>` containing the names of all paths on the given edge.
+    /// If the edge does not exist on any path, an empty vector is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use odgi_ffi::Graph;
+    /// # let graph = Graph::load("my_graph.odgi").unwrap();
+    /// // Find paths going from the forward orientation of node 1 to the forward orientation of node 2.
+    /// let paths = graph.get_paths_on_edge(1, true, 2, true);
+    /// for path_name in paths {
+    ///     println!("Found path on edge 1+ -> 2+: {}", path_name);
+    /// }
+    /// ```
+    pub fn get_paths_on_edge(
+        &self,
+        from_node: u64,
+        from_orientation: bool,
+        to_node: u64,
+        to_orientation: bool,
+    ) -> Vec<String> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        ffi::graph_get_paths_on_edge(
+            graph_t_ref,
+            from_node,
+            from_orientation,
+            to_node,
+            to_orientation
+        )
+    }
 }
 
 // --- MOCK IMPLEMENTATION (for docs.rs) ---
 #[cfg(feature = "docs-only")]
 impl Graph {
     /// Loads an ODGI graph from a file into memory.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - A string slice that holds the path to the ODGI file.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [`Error`] if the file does not exist or if the file format is invalid.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,no_run
-    /// use odgi_ffi::Graph;
-    ///
-    /// match Graph::load("my_graph.odgi") {
-    ///     Ok(graph) => println!("Graph loaded successfully!"),
-    ///     Err(e) => eprintln!("Failed to load graph: {}", e),
-    /// }
-    /// ```
     pub fn load(_path: &str) -> Result<Self, Error> { Ok(Graph { _inner: () }) }
 
     /// Returns the total number of nodes in the graph.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,no_run
-    /// # use odgi_ffi::Graph;
-    /// # let graph = Graph::load("my_graph.odgi").unwrap();
-    /// let count = graph.node_count();
-    /// println!("The graph has {} nodes.", count);
-    /// ```
     pub fn node_count(&self) -> u64 { 0 }
 
     /// Returns a list of all path names in the graph.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,no_run
-    /// # use odgi_ffi::Graph;
-    /// # let graph = Graph::load("my_graph.odgi").unwrap();
-    /// let paths = graph.get_path_names();
-    /// for path_name in paths {
-    ///     println!("Found path: {}", path_name);
-    /// }
-    /// ```
     pub fn get_path_names(&self) -> Vec<String> { vec![] }
 
     /// Projects a 0-based linear coordinate on a path to graph coordinates.
-    ///
-    /// This is useful for finding which node and offset corresponds to a
-    /// specific position along a named path.
-    ///
-    /// # Arguments
-    ///
-    /// * `path_name` - The name of the path to project onto.
-    /// * `pos` - The 0-based nucleotide position along the path.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Some(PathPosition)` if the path exists and the position is
-    /// within its bounds. Returns `None` otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,no_run
-    /// # use odgi_ffi::Graph;
-    /// # let graph = Graph::load("my_graph.odgi").unwrap();
-    /// if let Some(position) = graph.project("human_chr1", 1_000_000) {
-    ///     println!("Position 1M on chr1 is at node {} offset {}",
-    ///              position.node_id, position.offset);
-    /// } else {
-    ///     println!("Position not found on path.");
-    /// }
-    /// ```
     pub fn project(&self, _path_name: &str, _pos: u64) -> Option<PathPosition> { None }
 
     /// Gets the DNA sequence for a given node ID.
-    ///
-    /// # Arguments
-    ///
-    /// * `node_id` - The ID of the node to query.
-    ///
-    /// # Returns
-    ///
-    /// Returns the sequence as a `String`. If the `node_id` is invalid,
-    /// an empty string is returned.
     pub fn get_node_sequence(&self, _node_id: u64) -> String { String::new() }
 
     /// Gets the length of the sequence for a given node ID.
-    ///
-    /// # Arguments
-    ///
-    /// * `node_id` - The ID of the node to query.
-    ///
-    /// # Returns
-    ///
-    /// Returns the sequence length. If the `node_id` is invalid, `0` is returned.
     pub fn get_node_len(&self, _node_id: u64) -> u64 { 0 }
 
     /// Gets all successor edges for a given node ID.
-    ///
-    /// Successors are the nodes immediately following this one in the graph topology.
     pub fn get_successors(&self, _node_id: u64) -> Vec<Edge> { vec![] }
 
     /// Gets all predecessor edges for a given node ID.
-    ///
-    /// Predecessors are the nodes immediately preceding this one in the graph topology.
     pub fn get_predecessors(&self, _node_id: u64) -> Vec<Edge> { vec![] }
 
     /// Gets the names of all paths that step on a given node ID.
     pub fn get_paths_on_node(&self, _node_id: u64) -> Vec<String> { vec![] }
+
+    /// Gets the total length of a path in base pairs.
+    pub fn get_path_length(&self, _path_name: &str) -> Option<u64> { None }
+
+    /// Gets the names of all paths that traverse a specific directed edge.
+    pub fn get_paths_on_edge(
+        &self,
+        _from_node: u64,
+        _from_orientation: bool,
+        _to_node: u64,
+        _to_orientation: bool,
+    ) -> Vec<String> {
+        vec![]
+    }
 }
 
 

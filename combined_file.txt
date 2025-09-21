@@ -1,4 +1,4 @@
-// File: src/graph.rs
+// src/graph.rs
 
 //! Provides the main [`Graph`] struct for in-memory graph operations.
 //!
@@ -37,10 +37,17 @@ impl StdError for Error {}
 ///
 /// The only way to create a `Graph` is by calling [`Graph::load`].
 pub struct Graph {
-    // This field is private. It holds the pointer to our C++ OpaqueGraph wrapper.
+    // This field will only exist in real builds.
+    #[cfg(not(feature = "docs-only"))]
     inner: UniquePtr<ffi::OpaqueGraph>,
+
+    // For docs builds, add a dummy field to make the struct valid.
+    #[cfg(feature = "docs-only")]
+    _inner: (),
 }
 
+// --- REAL IMPLEMENTATION (for normal builds) ---
+#[cfg(not(feature = "docs-only"))]
 impl Graph {
     /// Loads an ODGI graph from a file into memory.
     ///
@@ -191,7 +198,79 @@ impl Graph {
         let graph_t_ref = ffi::get_graph_t(&self.inner);
         ffi::graph_get_paths_on_node(graph_t_ref, node_id)
     }
+
+    /// Gets the total length of a path in base pairs.
+    ///
+    /// # Arguments
+    ///
+    /// * `path_name` - The name of the path to measure.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(u64)` with the path length if the path exists.
+    /// Returns `None` if no path with that name is found in the graph.
+    pub fn get_path_length(&self, path_name: &str) -> Option<u64> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        // We can use the existing get_path_names to check for existence first,
+        // making our Rust API safer and more idiomatic than the C++ one.
+        if !self.get_path_names().iter().any(|p| p == path_name) {
+            return None;
+        }
+        let length = ffi::graph_get_path_length(graph_t_ref, path_name);
+        Some(length)
+    }
+    pub fn get_paths_on_edge(
+        &self,
+        from_node: u64,
+        from_orientation: bool,
+        to_node: u64,
+        to_orientation: bool,
+    ) -> Vec<String> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        ffi::graph_get_paths_on_edge(
+            graph_t_ref,
+            from_node,
+            from_orientation,
+            to_node,
+            to_orientation
+        )
+    }
 }
+
+// --- MOCK IMPLEMENTATION (for docs.rs) ---
+#[cfg(feature = "docs-only")]
+impl Graph {
+    /// Loads an ODGI graph from a file into memory.
+    pub fn load(_path: &str) -> Result<Self, Error> { Ok(Graph { _inner: () }) }
+
+    /// Returns the total number of nodes in the graph.
+    pub fn node_count(&self) -> u64 { 0 }
+
+    /// Returns a list of all path names in the graph.
+    pub fn get_path_names(&self) -> Vec<String> { vec![] }
+
+    /// Projects a 0-based linear coordinate on a path to graph coordinates.
+    pub fn project(&self, _path_name: &str, _pos: u64) -> Option<PathPosition> { None }
+
+    /// Gets the DNA sequence for a given node ID.
+    pub fn get_node_sequence(&self, _node_id: u64) -> String { String::new() }
+
+    /// Gets the length of the sequence for a given node ID.
+    pub fn get_node_len(&self, _node_id: u64) -> u64 { 0 }
+
+    /// Gets all successor edges for a given node ID.
+    pub fn get_successors(&self, _node_id: u64) -> Vec<Edge> { vec![] }
+
+    /// Gets all predecessor edges for a given node ID.
+    pub fn get_predecessors(&self, _node_id: u64) -> Vec<Edge> { vec![] }
+
+    /// Gets the names of all paths that step on a given node ID.
+    pub fn get_paths_on_node(&self, _node_id: u64) -> Vec<String> { vec![] }
+
+    /// Gets the total length of a path in base pairs.
+    pub fn get_path_length(&self, _path_name: &str) -> Option<u64> { None }
+}
+
 
 /// Marks the `Graph` struct as safe to send between threads.
 // The `unsafe` keyword is our guarantee to the compiler that we've ensured
@@ -203,7 +282,8 @@ unsafe impl Send for Graph {}
 // The `unsafe` keyword is our guarantee to the compiler that we've ensured
 // the underlying C++ object is safe to be sent and accessed across threads,
 // which is true in our read-only use case.
-unsafe impl Sync for Graph {}//! A safe Rust interface to the `odgi` C++ library.
+unsafe impl Sync for Graph {}// src/lib.rs
+//! A safe Rust interface to the `odgi` C++ library.
 //!
 //! The `odgi-ffi` crate provides high-level, idiomatic Rust bindings for querying
 //! [ODGI](https://github.com/pangenome/odgi) graphs. It handles the complexity of the
@@ -249,6 +329,8 @@ unsafe impl Sync for Graph {}//! A safe Rust interface to the `odgi` C++ library
 //! let odgi_path = odgi_file.path();
 //!
 //! // 1. Convert the GFA file to an ODGI file.
+//! // This function is only available when not using the `docs-only` feature.
+//! # #[cfg(not(feature = "docs-only"))]
 //! gfa_to_odgi(gfa_path.to_str().unwrap(), odgi_path.to_str().unwrap())
 //!      .expect("Failed to convert GFA to ODGI");
 //!
@@ -265,6 +347,10 @@ unsafe impl Sync for Graph {}//! A safe Rust interface to the `odgi` C++ library
 //! let seq = graph.get_node_sequence(1);
 //! assert_eq!(seq, "GATTACA");
 //!
+//! // Get path length using the new method.
+//! let length = graph.get_path_length("x").unwrap();
+//! assert_eq!(length, 8);
+//!
 //! // Projecting position 7 on path "x" should land at the start of node 2.
 //! let position = graph.project("x", 7).unwrap();
 //! assert_eq!(position.node_id, 2);
@@ -272,14 +358,21 @@ unsafe impl Sync for Graph {}//! A safe Rust interface to the `odgi` C++ library
 //! ```
 
 mod graph;
+
+// Conditionally compile the conversion module.
+// It will not exist for docs.rs builds.
+#[cfg(not(feature = "docs-only"))]
 mod conversion;
 
 // Publicly re-export the core types for easy access.
 pub use graph::{Graph, Error, Edge, PathPosition};
+
+// Conditionally re-export the conversion functions.
+#[cfg(not(feature = "docs-only"))]
 pub use conversion::{gfa_to_odgi, odgi_to_gfa};
 
 
-/// Internal FFI bridge to the C++ odgi library.
+// --- REAL FFI BRIDGE (for normal builds) ---
 #[cfg(not(feature = "docs-only"))]
 #[cxx::bridge(namespace = "odgi")]
 mod ffi {
@@ -306,26 +399,19 @@ mod ffi {
     }
 
     unsafe extern "C++" {
-        // We include our own header first.
         include!("odgi-ffi/src/odgi_wrapper.hpp");
-        
-        // This is the C++ header that cxx generates from the Rust code above.
-        // We must include it so our C++ functions know about the Rust-defined structs.
         include!("odgi-ffi/src/lib.rs.h");
 
-        // The opaque C++ types remain the same.
         type graph_t;
         #[namespace = ""]
         type OpaqueGraph;
 
-        // All functions are in the global namespace.
         #[namespace = ""]
         fn load_graph(path: &str) -> UniquePtr<OpaqueGraph>;
         #[namespace = ""]
         fn get_graph_t<'a>(graph: &'a OpaqueGraph) -> &'a graph_t;
         #[namespace = ""]
         fn get_node_count(graph: &graph_t) -> u64;
-
         #[namespace = ""]
         fn graph_get_path_names(graph: &graph_t) -> Vec<String>;
         #[namespace = ""]
@@ -340,19 +426,49 @@ mod ffi {
         fn graph_get_predecessors(graph: &graph_t, node_id: u64) -> Vec<Edge>;
         #[namespace = ""]
         fn graph_get_paths_on_node(graph: &graph_t, node_id: u64) -> Vec<String>;
+        #[namespace = ""]
+        fn graph_get_path_length(graph: &graph_t, path_name: &str) -> u64;
+        #[namespace = ""]
+        fn graph_get_paths_on_edge(
+            graph: &graph_t,
+            from_node: u64,
+            from_orient: bool,
+            to_node: u64,
+            to_orient: bool
+        ) -> Vec<String>;
     }
 }
 
-// When building for docs, provide a dummy ffi module to satisfy the compiler.
-// The public API is in other modules, so rustdoc will still generate full documentation.
+// --- MOCK FFI BRIDGE (for docs.rs) ---
 #[cfg(feature = "docs-only")]
-mod ffi {}// File: src/odgi.cpp
-#include "odgi_wrapper.hpp"
+mod ffi {
+    // This self-contained mock module provides all the types that `graph.rs` needs
+    // to compile its public API for documentation purposes.
+
+    // Mock the opaque C++ types.
+    pub enum OpaqueGraph {}
+
+    // Provide mock definitions for the shared structs.
+    #[derive(Debug, Clone)]
+    pub struct Edge {
+        pub to_node: u64,
+        pub from_orientation: bool,
+        pub to_orientation: bool,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct PathPosition {
+        pub node_id: u64,
+        pub offset: u64,
+        pub is_forward: bool,
+    }
+}#include "odgi_wrapper.hpp"
 #include <fstream>
 #include <string>
 #include <vector>
+#include <algorithm> // Required for std::sort and std::unique
 #include "odgi-ffi/src/lib.rs.h"
-
+// src/odgi.cpp
 // --- Core API ---
 std::unique_ptr<OpaqueGraph> load_graph(rust::Str path) {
     auto odgi_graph = std::make_unique<odgi::graph_t>();
@@ -387,8 +503,6 @@ std::unique_ptr<odgi::PathPosition> graph_project(const odgi::graph_t& graph, ru
     }
     odgi::path_handle_t path = graph.get_path_handle(std::string(path_name));
     
-    // CORRECTED: The method `get_path_length` does not exist in this odgi version.
-    // We calculate the path length manually by summing the lengths of its nodes.
     uint64_t path_len = 0;
     graph.for_each_step_in_path(path, [&](const odgi::step_handle_t& step) {
         path_len += graph.get_length(graph.get_handle_of_step(step));
@@ -403,7 +517,7 @@ std::unique_ptr<odgi::PathPosition> graph_project(const odgi::graph_t& graph, ru
     std::unique_ptr<odgi::PathPosition> found_pos = nullptr;
 
     graph.for_each_step_in_path(path, [&](const odgi::step_handle_t& step) {
-        if (found_pos) { // If we've already found it, just let the iterator finish
+        if (found_pos) { 
             return true;
         }
 
@@ -482,6 +596,65 @@ rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint
         return true;
     });
     return paths;
+}
+
+uint64_t graph_get_path_length(const odgi::graph_t& graph, rust::Str path_name) {
+    if (!graph.has_path(std::string(path_name))) {
+        return 0; 
+    }
+    odgi::path_handle_t path = graph.get_path_handle(std::string(path_name));
+    uint64_t path_len = 0;
+    graph.for_each_step_in_path(path, [&](const odgi::step_handle_t& step) {
+        path_len += graph.get_length(graph.get_handle_of_step(step));
+        return true;
+    });
+    return path_len;
+}
+
+rust::Vec<rust::String> graph_get_paths_on_edge(
+    const odgi::graph_t& graph,
+    uint64_t from_node, bool from_is_forward,
+    uint64_t to_node, bool to_is_forward
+) {
+    rust::Vec<rust::String> initial_paths;
+    if (!graph.has_node(from_node) || !graph.has_node(to_node)) {
+        return initial_paths;
+    }
+
+    bool from_is_reverse = !from_is_forward;
+    bool to_is_reverse = !to_is_forward;
+
+    odgi::handle_t from_handle = graph.get_handle(from_node, from_is_reverse);
+    odgi::handle_t to_handle = graph.get_handle(to_node, to_is_reverse);
+
+    graph.for_each_step_on_handle(from_handle, [&](const odgi::step_handle_t& step) {
+        if (graph.has_next_step(step)) {
+            odgi::step_handle_t next_step = graph.get_next_step(step);
+            if (graph.get_handle_of_step(next_step) == to_handle) {
+                initial_paths.push_back(graph.get_path_name(graph.get_path_handle_of_step(step)));
+            }
+        }
+        return true;
+    });
+
+    // --- FIX APPLIED HERE ---
+    // Convert the rust::Vec to a std::vector to use standard algorithms.
+    std::vector<std::string> std_paths;
+    for (const auto& path : initial_paths) {
+        std_paths.push_back(std::string(path));
+    }
+
+    // Sort and remove duplicates from the std::vector.
+    std::sort(std_paths.begin(), std_paths.end());
+    std_paths.erase(std::unique(std_paths.begin(), std_paths.end()), std_paths.end());
+
+    // Convert the result back into a rust::Vec to return to Rust.
+    rust::Vec<rust::String> final_paths;
+    for (const auto& path : std_paths) {
+        final_paths.push_back(rust::String(path));
+    }
+
+    return final_paths;
 }// File: src/conversion.rs
 
 //! Provides utilities to convert between GFA and ODGI file formats.
@@ -632,6 +805,7 @@ struct Edge;
 struct PathPosition;
 }
 
+
 std::unique_ptr<OpaqueGraph> load_graph(rust::Str path);
 const odgi::graph_t& get_graph_t(const OpaqueGraph& graph);
 uint64_t get_node_count(const odgi::graph_t& graph);
@@ -644,3 +818,10 @@ uint64_t graph_get_node_len(const odgi::graph_t& graph, uint64_t node_id);
 rust::Vec<odgi::Edge> graph_get_successors(const odgi::graph_t& graph, uint64_t node_id);
 rust::Vec<odgi::Edge> graph_get_predecessors(const odgi::graph_t& graph, uint64_t node_id);
 rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint64_t node_id);
+uint64_t graph_get_path_length(const odgi::graph_t& graph, rust::Str path_name);
+
+rust::Vec<rust::String> graph_get_paths_on_edge(
+    const odgi::graph_t& graph,
+    uint64_t from_node, bool from_orient,
+    uint64_t to_node, bool to_orient
+);
