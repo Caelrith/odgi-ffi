@@ -219,6 +219,53 @@ impl Graph {
         let length = ffi::graph_get_path_length(graph_t_ref, path_name);
         Some(length)
     }
+    // ADD THIS NEW PUBLIC METHOD
+    /// Gets the next node ID on a given path from a specified node.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(u64)` with the next node ID if the current node is on the
+    /// path and is not the last node. Returns `None` otherwise.
+    pub fn get_next_node_on_path(&self, node_id: u64, path_name: &str) -> Option<u64> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        let next_node_id = ffi::graph_get_next_node_on_path(graph_t_ref, path_name, node_id);
+        if next_node_id >= 0 {
+            Some(next_node_id as u64)
+        } else {
+            None
+        }
+    }
+
+    /// Gets the names of all paths that traverse a specific directed edge.
+    ///
+    /// An edge is defined by a source node and a destination node, including the
+    /// orientation of each node. This function will return a unique list of
+    /// path names that step from `from_node` to `to_node` with the specified
+    /// orientations.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_node` - The ID of the node where the edge begins.
+    /// * `from_orientation` - The orientation of the `from_node`. `true` for forward, `false` for reverse.
+    /// * `to_node` - The ID of the node where the edge ends.
+    /// * `to_orientation` - The orientation of the `to_node`. `true` for forward, `false` for reverse.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Vec<String>` containing the names of all paths on the given edge.
+    /// If the edge does not exist on any path, an empty vector is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use odgi_ffi::Graph;
+    /// # let graph = Graph::load("my_graph.odgi").unwrap();
+    /// // Find paths going from the forward orientation of node 1 to the forward orientation of node 2.
+    /// let paths = graph.get_paths_on_edge(1, true, 2, true);
+    /// for path_name in paths {
+    ///     println!("Found path on edge 1+ -> 2+: {}", path_name);
+    /// }
+    /// ```
     pub fn get_paths_on_edge(
         &self,
         from_node: u64,
@@ -269,6 +316,17 @@ impl Graph {
 
     /// Gets the total length of a path in base pairs.
     pub fn get_path_length(&self, _path_name: &str) -> Option<u64> { None }
+
+    /// Gets the names of all paths that traverse a specific directed edge.
+    pub fn get_paths_on_edge(
+        &self,
+        _from_node: u64,
+        _from_orientation: bool,
+        _to_node: u64,
+        _to_orientation: bool,
+    ) -> Vec<String> {
+        vec![]
+    }
 }
 
 
@@ -428,6 +486,8 @@ mod ffi {
         fn graph_get_paths_on_node(graph: &graph_t, node_id: u64) -> Vec<String>;
         #[namespace = ""]
         fn graph_get_path_length(graph: &graph_t, path_name: &str) -> u64;
+        #[namespace = ""]
+        fn graph_get_next_node_on_path(graph: &graph_t, path_name: &str, node_id: u64) -> i64;
         #[namespace = ""]
         fn graph_get_paths_on_edge(
             graph: &graph_t,
@@ -596,6 +656,37 @@ rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint
         return true;
     });
     return paths;
+}
+
+int64_t graph_get_next_node_on_path(const odgi::graph_t& graph, rust::Str path_name_str, uint64_t node_id) {
+    std::string path_name(path_name_str);
+    if (!graph.has_path(path_name) || !graph.has_node(node_id)) {
+        return -1;
+    }
+
+    odgi::path_handle_t path_handle = graph.get_path_handle(path_name);
+    odgi::handle_t target_handle = graph.get_handle(node_id, false); // Check both orientations
+    odgi::handle_t target_handle_rev = graph.get_handle(node_id, true);
+
+    int64_t next_node = -1;
+    bool found_step = false;
+
+    graph.for_each_step_in_path(path_handle, [&](const odgi::step_handle_t& step) {
+        if (found_step) {
+            // This is the step immediately after our target step
+            odgi::handle_t next_handle = graph.get_handle_of_step(step);
+            next_node = graph.get_id(next_handle);
+            return false; // Stop iterating
+        }
+        odgi::handle_t current_handle = graph.get_handle_of_step(step);
+        if (current_handle == target_handle || current_handle == target_handle_rev) {
+            // We found our node. The next iteration will get the successor.
+            found_step = true;
+        }
+        return true; // Continue iterating
+    });
+
+    return next_node;
 }
 
 uint64_t graph_get_path_length(const odgi::graph_t& graph, rust::Str path_name) {
@@ -819,6 +910,7 @@ rust::Vec<odgi::Edge> graph_get_successors(const odgi::graph_t& graph, uint64_t 
 rust::Vec<odgi::Edge> graph_get_predecessors(const odgi::graph_t& graph, uint64_t node_id);
 rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint64_t node_id);
 uint64_t graph_get_path_length(const odgi::graph_t& graph, rust::Str path_name);
+int64_t graph_get_next_node_on_path(const odgi::graph_t& graph, rust::Str path_name, uint64_t node_id);
 
 rust::Vec<rust::String> graph_get_paths_on_edge(
     const odgi::graph_t& graph,

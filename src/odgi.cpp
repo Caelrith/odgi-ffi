@@ -134,6 +134,37 @@ rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint
     return paths;
 }
 
+int64_t graph_get_next_node_on_path(const odgi::graph_t& graph, rust::Str path_name_str, uint64_t node_id) {
+    std::string path_name(path_name_str);
+    if (!graph.has_path(path_name) || !graph.has_node(node_id)) {
+        return -1;
+    }
+
+    odgi::path_handle_t path_handle = graph.get_path_handle(path_name);
+    odgi::handle_t target_handle = graph.get_handle(node_id, false); // Check both orientations
+    odgi::handle_t target_handle_rev = graph.get_handle(node_id, true);
+
+    int64_t next_node = -1;
+    bool found_step = false;
+
+    graph.for_each_step_in_path(path_handle, [&](const odgi::step_handle_t& step) {
+        if (found_step) {
+            // This is the step immediately after our target step
+            odgi::handle_t next_handle = graph.get_handle_of_step(step);
+            next_node = graph.get_id(next_handle);
+            return false; // Stop iterating
+        }
+        odgi::handle_t current_handle = graph.get_handle_of_step(step);
+        if (current_handle == target_handle || current_handle == target_handle_rev) {
+            // We found our node. The next iteration will get the successor.
+            found_step = true;
+        }
+        return true; // Continue iterating
+    });
+
+    return next_node;
+}
+
 uint64_t graph_get_path_length(const odgi::graph_t& graph, rust::Str path_name) {
     if (!graph.has_path(std::string(path_name))) {
         return 0; 

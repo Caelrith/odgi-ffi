@@ -219,6 +219,22 @@ impl Graph {
         let length = ffi::graph_get_path_length(graph_t_ref, path_name);
         Some(length)
     }
+    // ADD THIS NEW PUBLIC METHOD
+    /// Gets the next node ID on a given path from a specified node.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(u64)` with the next node ID if the current node is on the
+    /// path and is not the last node. Returns `None` otherwise.
+    pub fn get_next_node_on_path(&self, node_id: u64, path_name: &str) -> Option<u64> {
+        let graph_t_ref = ffi::get_graph_t(&self.inner);
+        let next_node_id = ffi::graph_get_next_node_on_path(graph_t_ref, path_name, node_id);
+        if next_node_id >= 0 {
+            Some(next_node_id as u64)
+        } else {
+            None
+        }
+    }
 
     /// Gets the names of all paths that traverse a specific directed edge.
     ///

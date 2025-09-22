@@ -32,6 +32,7 @@ rust::Vec<odgi::Edge> graph_get_successors(const odgi::graph_t& graph, uint64_t 
 rust::Vec<odgi::Edge> graph_get_predecessors(const odgi::graph_t& graph, uint64_t node_id);
 rust::Vec<rust::String> graph_get_paths_on_node(const odgi::graph_t& graph, uint64_t node_id);
 uint64_t graph_get_path_length(const odgi::graph_t& graph, rust::Str path_name);
+int64_t graph_get_next_node_on_path(const odgi::graph_t& graph, rust::Str path_name, uint64_t node_id);
 
 rust::Vec<rust::String> graph_get_paths_on_edge(
     const odgi::graph_t& graph,

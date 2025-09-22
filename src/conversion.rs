@@ -49,7 +49,7 @@ use tempfile::NamedTempFile; // Needed for the updated examples
 /// assert!(odgi_path.exists());
 /// ```
 pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
-    let odgi_exe = env!("ODGI_EXE");
+    let odgi_exe = "odgi";
     let output = Command::new(odgi_exe)
         .arg("build")
         .arg("-g")
@@ -108,7 +108,7 @@ pub fn gfa_to_odgi(gfa_path: &str, odgi_path: &str) -> Result<(), Error> {
 /// assert!(gfa_out_path.exists());
 /// ```
 pub fn odgi_to_gfa(odgi_path: &str, gfa_path: &str) -> Result<(), Error> {
-    let odgi_exe = env!("ODGI_EXE");
+    let odgi_exe = "odgi";
     let output = Command::new(odgi_exe)
         .arg("view")
         .arg("-i")

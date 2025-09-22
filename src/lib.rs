@@ -145,6 +145,8 @@ mod ffi {
         #[namespace = ""]
         fn graph_get_path_length(graph: &graph_t, path_name: &str) -> u64;
         #[namespace = ""]
+        fn graph_get_next_node_on_path(graph: &graph_t, path_name: &str, node_id: u64) -> i64;
+        #[namespace = ""]
         fn graph_get_paths_on_edge(
             graph: &graph_t,
             from_node: u64,
