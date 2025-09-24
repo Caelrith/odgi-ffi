@@ -26,6 +26,9 @@ fn main() {
     let dst = cmake::Config::new(&odgi_build_source_dir)
         .define("BUILD_TESTS", "OFF")
         .define("ODGI_BUILD_DOCS", "OFF")
+        // DEFINITIVE FIX: Force a portable build profile and add the linker flag.
+        .profile("Generic")
+        .define("CMAKE_EXE_LINKER_FLAGS", "-lpthread")
         .build();
 
     // === Part 2: Make the compiled odgi executable path available to our Rust code ===
