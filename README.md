@@ -7,6 +7,10 @@
 
 A safe, ergonomic, and high-performance Rust wrapper for the `odgi` pangenome graph tool.
 
+If you made any projects on top of this crate and want to show it off, leave me a message.
+Here is a project I made myself using this crate:
+www.virusmapper.com - a easy to use local interface to do pangenomic analysis for virologists that don't want to use the CLI themselves.
+
 ## Overview
 
 `odgi-ffi` provides idiomatic Rust bindings to the powerful `odgi` C++ library. It allows Rust developers to safely and efficiently load, query, and manipulate pangenome variation graphs. The library handles the complexity of the C++/Rust boundary, offering a clean API that abstracts away unsafe FFI calls.
